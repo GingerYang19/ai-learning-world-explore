@@ -1,0 +1,1393 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI学习世界 - 3D探索·学习·创造</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+body{overflow:hidden;background:#000;font-family:'Microsoft YaHei','PingFang SC',sans-serif;color:#fff;user-select:none}
+canvas.game-canvas{display:block;position:fixed;inset:0;z-index:0}
+/* HUD */
+#hud{position:fixed;top:0;left:0;right:0;pointer-events:none;z-index:10}
+#hud-title{position:absolute;top:10px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.55);padding:6px 24px;border-radius:6px;font-size:1rem;font-weight:bold;color:#8f8}
+#hud-controls{position:absolute;top:10px;left:12px;background:rgba(0,0,0,.55);padding:8px 14px;border-radius:6px;font-size:.72rem;line-height:1.7;color:#ccc}
+#hud-controls b{color:#8f8}
+#hud-stats{position:absolute;top:10px;right:12px;background:rgba(0,0,0,.55);padding:8px 14px;border-radius:6px;font-size:.78rem;text-align:right}
+#hud-stats .val{color:#8f8;font-weight:bold}
+#crosshair{position:fixed;top:50%;left:50%;width:18px;height:18px;margin:-9px 0 0 -9px;pointer-events:none;z-index:10;display:none}
+#crosshair::before,#crosshair::after{content:'';position:absolute;background:#fff;mix-blend-mode:difference}
+#crosshair::before{left:8px;top:0;width:2px;height:18px}
+#crosshair::after{left:0;top:8px;width:18px;height:2px}
+#tool-icon{position:fixed;top:50%;left:50%;margin-top:12px;margin-left:20px;pointer-events:none;z-index:10;display:none;width:72px;height:72px;image-rendering:pixelated;filter:drop-shadow(2px 3px 4px rgba(0,0,0,.65));animation:tool-bob 2.5s ease-in-out infinite}
+@keyframes tool-bob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+/* Hotbar */
+#hotbar{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);display:none;gap:4px;z-index:10;pointer-events:none}
+.hotbar-slot{width:52px;height:52px;background:rgba(80,80,80,.65);border:2px solid rgba(40,40,40,.8);border-radius:4px;display:flex;flex-direction:column;align-items:center;justify-content:center;position:relative}
+.hotbar-slot.active{border-color:#fff;background:rgba(120,120,120,.7)}
+.hotbar-slot .key{position:absolute;top:2px;left:4px;font-size:.55rem;color:rgba(255,255,255,.5)}
+.hotbar-slot .bname{position:absolute;bottom:1px;font-size:.5rem;color:rgba(255,255,255,.45)}
+.block-preview{width:32px;height:32px;border-radius:3px}
+/* Region indicator */
+#region-indicator{position:fixed;top:56px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.65);padding:5px 18px;border-radius:6px;font-size:.82rem;z-index:10;pointer-events:none;opacity:0;transition:opacity .4s}
+#region-indicator.show{opacity:1}
+/* Interact prompt */
+#interact-prompt{position:fixed;top:55%;left:50%;transform:translate(-50%,-50%);z-index:11;pointer-events:none;opacity:0;transition:opacity .25s;text-align:center}
+#interact-prompt.show{opacity:1}
+#interact-prompt .ip-box{background:rgba(0,0,0,.75);border:1px solid rgba(78,204,163,.5);padding:8px 20px;border-radius:8px;font-size:.85rem;color:#4ecca3;display:inline-block}
+#interact-prompt .ip-key{display:inline-block;background:rgba(78,204,163,.25);border:1px solid #4ecca3;border-radius:4px;padding:1px 8px;margin:0 3px;font-weight:bold;font-size:.9rem;color:#fff}
+/* Toast */
+.toast{position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:rgba(0,0,0,.85);padding:8px 22px;border-radius:8px;font-size:.82rem;z-index:15;pointer-events:none;border:1px solid rgba(255,255,255,.12);opacity:0;transition:opacity .3s}
+.toast.show{opacity:1}
+/* UI overlays share a z-index layer */
+.ui-overlay{position:fixed;inset:0;z-index:50;display:none;align-items:center;justify-content:center}
+.ui-overlay.open{display:flex}
+.ui-backdrop{position:absolute;inset:0;background:rgba(0,0,0,.7)}
+/* Lock dialog */
+.lock-dialog{position:relative;z-index:1;background:rgba(25,25,45,.96);border:2px solid #e74c3c;border-radius:14px;padding:30px 40px;text-align:center;max-width:440px;width:90%}
+.lock-dialog h3{color:#e74c3c;margin-bottom:10px;font-size:1.1rem}
+.lock-dialog p{color:#aaa;font-size:.85rem;margin-bottom:18px;line-height:1.6}
+.lock-dialog button{padding:9px 26px;border:none;border-radius:7px;cursor:pointer;font-size:.85rem;margin:0 6px;transition:all .15s}
+.lock-dialog button:hover{filter:brightness(1.15)}
+.btn-learn{background:#4ecca3;color:#fff}
+.btn-cancel{background:rgba(255,255,255,.12);color:#bbb}
+/* Modal */
+.modal-wrap{position:relative;z-index:1;width:90%;max-width:800px;max-height:85vh;display:flex;flex-direction:column;background:#1e1e2e;border-radius:16px;border:1px solid rgba(78,204,163,.2);overflow:hidden;transform:scale(.96);transition:transform .25s}
+.ui-overlay.open .modal-wrap{transform:scale(1)}
+.modal-header{padding:18px 24px;background:linear-gradient(135deg,rgba(78,204,163,.12),rgba(69,183,209,.12));border-bottom:1px solid rgba(255,255,255,.05);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.modal-header h2{font-size:1.12rem;color:#4ecca3}
+.close-btn{width:32px;height:32px;border-radius:8px;border:none;background:rgba(255,255,255,.1);color:#aaa;cursor:pointer;font-size:1.1rem;display:flex;align-items:center;justify-content:center;transition:all .15s}
+.close-btn:hover{background:rgba(255,80,80,.3);color:#ff5050}
+.modal-body{flex:1;overflow-y:auto;padding:20px 24px}
+.modal-body::-webkit-scrollbar{width:6px}
+.modal-body::-webkit-scrollbar-track{background:transparent}
+.modal-body::-webkit-scrollbar-thumb{background:rgba(78,204,163,.3);border-radius:3px}
+/* Course list */
+.course-item{display:flex;align-items:center;gap:12px;padding:12px 16px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.05);border-radius:10px;margin-bottom:8px;cursor:pointer;transition:all .15s}
+.course-item:hover{background:rgba(78,204,163,.08);border-color:rgba(78,204,163,.2)}
+.course-item.done{border-color:rgba(78,204,163,.25)}
+.cstatus{width:26px;height:26px;border-radius:50%;border:2px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:.75rem}
+.course-item.done .cstatus{background:#4ecca3;border-color:#4ecca3;color:#fff}
+.cinfo{flex:1;min-width:0}
+.cinfo h4{font-size:.86rem;color:#ddd;margin-bottom:2px}
+.tag{display:inline-block;padding:1px 6px;background:rgba(69,183,209,.15);color:#45b7d1;border-radius:3px;font-size:.62rem;margin-right:4px;margin-top:3px}
+.mprog{display:flex;align-items:center;gap:10px;margin-bottom:14px;padding:10px 14px;background:rgba(78,204,163,.08);border-radius:10px}
+.mprog-bar{flex:1;height:7px;background:rgba(255,255,255,.1);border-radius:4px;overflow:hidden}
+.mprog-fill{height:100%;background:linear-gradient(90deg,#4ecca3,#45b7d1);border-radius:4px;transition:width .5s}
+.mprog-text{font-size:.78rem;color:#4ecca3;white-space:nowrap}
+/* Content */
+.ct{font-size:.86rem;line-height:1.8;color:#ccc}
+.ct p{margin-bottom:10px}
+.ct ul{padding-left:20px;margin-bottom:10px}
+.ct li{margin-bottom:5px}
+.highlight{background:rgba(78,204,163,.15);padding:10px 14px;border-radius:8px;border-left:3px solid #4ecca3;margin:10px 0}
+.nav-row{display:flex;gap:10px;margin-top:18px}
+.nav-row button{padding:9px 20px;border-radius:8px;border:none;cursor:pointer;font-size:.84rem;transition:all .15s}
+.btn-p{background:#4ecca3;color:#fff}
+.btn-p:hover{background:#45b794}
+.btn-s{background:rgba(255,255,255,.1);color:#ddd}
+.btn-s:hover{background:rgba(255,255,255,.15)}
+.btn-b{background:rgba(255,255,255,.08);color:#aaa;border:1px solid rgba(255,255,255,.1)}
+.btn-b:hover{background:rgba(255,255,255,.12)}
+.learn-banner{display:block;margin:16px 0;padding:14px 24px;background:linear-gradient(135deg,#1a6dff,#3b99fc);border:2px solid rgba(59,153,252,.5);border-radius:12px;text-align:center;text-decoration:none;color:#fff;font-size:.95rem;font-weight:bold;letter-spacing:.5px;box-shadow:0 4px 16px rgba(26,109,255,.35);transition:all .2s}
+.learn-banner:hover{background:linear-gradient(135deg,#155bdb,#2d88f0);box-shadow:0 6px 24px rgba(26,109,255,.5);transform:translateY(-1px)}
+.learn-banner .lb-sub{font-size:.75rem;font-weight:normal;opacity:.85;margin-top:4px}
+.stitle{font-size:.95rem;color:#4ecca3;margin-bottom:10px;padding-bottom:7px;border-bottom:1px solid rgba(78,204,163,.2)}
+/* Quiz */
+.qq{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:12px;padding:14px;margin-bottom:14px}
+.qq h4{font-size:.86rem;color:#ddd;margin-bottom:10px}
+.qo{display:block;padding:9px 13px;margin-bottom:5px;background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.08);border-radius:8px;cursor:pointer;color:#ccc;font-size:.84rem;transition:all .15s}
+.qo:hover{background:rgba(78,204,163,.1);border-color:rgba(78,204,163,.3)}
+.qo.sel{background:rgba(69,183,209,.15);border-color:#45b7d1;color:#45b7d1}
+.qo.ok{background:rgba(78,204,163,.2)!important;border-color:#4ecca3!important;color:#4ecca3!important}
+.qo.no{background:rgba(255,80,80,.15)!important;border-color:#ff5050!important;color:#ff5050!important}
+.qr{padding:14px;border-radius:10px;margin-top:14px;text-align:center;font-size:.95rem}
+.qr.pass{background:rgba(78,204,163,.15);color:#4ecca3;border:1px solid rgba(78,204,163,.3)}
+.qr.fail{background:rgba(255,80,80,.1);color:#ff5050;border:1px solid rgba(255,80,80,.2)}
+/* Celebration */
+#celeb{position:fixed;inset:0;z-index:80;display:none}
+#celeb.on{display:block}
+#celeb canvas{position:absolute;inset:0;width:100%;height:100%}
+.ubanner{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(0,0,0,.92);border:2px solid #4ecca3;border-radius:16px;padding:36px 50px;text-align:center;z-index:81;display:none}
+.ubanner.on{display:block}
+.ubanner h2{font-size:1.4rem;color:#4ecca3;margin-bottom:8px}
+.ubanner p{color:#aaa;margin-bottom:18px;font-size:.88rem}
+/* Start */
+#start{position:fixed;inset:0;background:linear-gradient(135deg,#0a0a1a,#1a1a3e);z-index:100;display:flex;flex-direction:column;align-items:center;justify-content:center}
+#start h1{font-size:2.6rem;color:#4ecca3;margin-bottom:.5rem;text-shadow:0 0 30px rgba(78,204,163,.4)}
+#start .sub{color:#888;font-size:1rem;margin-bottom:2.5rem}
+#start button{padding:14px 48px;background:#4ecca3;color:#111;border:none;border-radius:10px;font-size:1.05rem;cursor:pointer;font-weight:bold;transition:all .2s}
+#start button:hover{background:#5fd6b3;transform:scale(1.05)}
+#start .hint{color:#555;font-size:.78rem;margin-top:1.5rem}
+@media(max-width:768px){.modal-wrap{width:96%;max-height:92vh}.hotbar-slot{width:42px;height:42px}.block-preview{width:26px;height:26px}}
+/* Tool HUD */
+#tool-hud{position:fixed;bottom:80px;right:16px;z-index:10;pointer-events:none;display:none}
+.tool-card{background:rgba(0,0,0,.6);border:2px solid rgba(255,255,255,.15);border-radius:8px;padding:8px 14px;text-align:center;min-width:70px}
+.tool-card.active{border-color:#4ecca3;background:rgba(78,204,163,.12)}
+.tool-icon{width:44px;height:44px;image-rendering:pixelated}
+.tool-name{font-size:.65rem;color:#ccc;margin-top:3px}
+.tool-key{font-size:.55rem;color:rgba(255,255,255,.35);margin-top:2px}
+/* Achievement toast */
+.achv-toast{position:fixed;top:80px;right:16px;background:rgba(15,15,35,.95);border:1px solid #ffd700;border-radius:10px;padding:12px 20px;z-index:60;opacity:0;transform:translateX(100px);transition:all .4s ease;pointer-events:none;max-width:280px}
+.achv-toast.show{opacity:1;transform:translateX(0)}
+.achv-toast .achv-icon{font-size:1.3rem;float:left;margin-right:10px;line-height:1.4}
+.achv-toast .achv-title{color:#ffd700;font-size:.82rem;font-weight:bold}
+.achv-toast .achv-desc{color:#aaa;font-size:.72rem;margin-top:2px}
+/* Achievement panel */
+#achv-panel{position:fixed;top:50px;right:12px;z-index:10;pointer-events:none;display:none}
+.achv-badge{display:inline-block;width:28px;height:28px;border-radius:50%;border:2px solid rgba(255,255,255,.1);background:rgba(0,0,0,.5);margin:2px;font-size:.8rem;line-height:24px;text-align:center;opacity:.3}
+.achv-badge.earned{border-color:#ffd700;opacity:1;background:rgba(255,215,0,.15)}
+/* NPC Dialogue */
+#npc-prompt{position:fixed;top:58%;left:50%;transform:translate(-50%,-50%);z-index:11;pointer-events:none;opacity:0;transition:opacity .25s;text-align:center}
+#npc-prompt.show{opacity:1}
+#npc-prompt .np-box{background:rgba(0,0,0,.75);border:1px solid rgba(255,183,77,.5);padding:6px 18px;border-radius:8px;font-size:.82rem;color:#ffb74d;display:inline-block}
+#npc-prompt .ip-key{display:inline-block;background:rgba(255,183,77,.25);border:1px solid #ffb74d;border-radius:4px;padding:1px 8px;margin:0 3px;font-weight:bold;font-size:.9rem;color:#fff}
+#npc-dialog{position:fixed;bottom:120px;left:50%;transform:translateX(-50%);z-index:20;width:520px;max-width:90vw;display:none}
+#npc-dialog.open{display:block}
+#npc-dialog .nd-card{background:rgba(15,15,30,.95);border:2px solid rgba(255,183,77,.4);border-radius:12px;padding:0;overflow:hidden;box-shadow:0 6px 30px rgba(0,0,0,.6)}
+#npc-dialog .nd-header{display:flex;align-items:center;gap:10px;padding:10px 16px;background:rgba(255,183,77,.08);border-bottom:1px solid rgba(255,183,77,.15)}
+#npc-dialog .nd-avatar{width:32px;height:32px;border-radius:50%;border:2px solid rgba(255,183,77,.4);display:flex;align-items:center;justify-content:center;font-size:1rem}
+#npc-dialog .nd-name{font-size:.9rem;font-weight:bold;color:#ffb74d}
+#npc-dialog .nd-role{font-size:.7rem;color:#888;margin-left:4px}
+#npc-dialog .nd-body{padding:14px 16px;min-height:60px;font-size:.85rem;line-height:1.6;color:#ddd}
+#npc-dialog .nd-body .nd-highlight{color:#4ecca3;font-weight:bold}
+#npc-dialog .nd-footer{display:flex;justify-content:flex-end;gap:8px;padding:8px 16px;border-top:1px solid rgba(255,255,255,.06)}
+#npc-dialog .nd-btn{background:rgba(255,183,77,.15);border:1px solid rgba(255,183,77,.3);color:#ffb74d;padding:5px 16px;border-radius:6px;cursor:pointer;font-size:.8rem;font-family:inherit;transition:all .2s}
+#npc-dialog .nd-btn:hover{background:rgba(255,183,77,.25)}
+#npc-dialog .nd-btn.nd-primary{background:rgba(78,204,163,.15);border-color:rgba(78,204,163,.3);color:#4ecca3}
+#npc-dialog .nd-btn.nd-primary:hover{background:rgba(78,204,163,.25)}
+</style>
+</head>
+<body>
+<div id="start"><h1>AI 学习世界</h1><p class="sub">探索 · 学习 · 创造</p><button onclick="startGame()">点击进入世界</button><p class="hint">进入后点击画面锁定鼠标控制视角，按 ESC 释放</p></div>
+<div id="hud" style="display:none">
+  <div id="hud-title">AI 学习世界</div>
+  <div id="hud-controls"><b>WASD</b> 移动 · <b>空格</b> 跳跃 · <b>鼠标</b> 视角<br><b>左键</b> 破坏 · <b>右键</b> 放置 · <b>1-0</b> 切换方块<br><b>Q</b> 切换工具 · <b>E</b> 交互学习方块 · <b>F</b> 与NPC对话</div>
+  <div id="hud-stats"><div>模块 <span class="val" id="s-mod">0/17</span></div><div>课程 <span class="val" id="s-crs">0/97</span></div><div>已解锁 <span class="val" id="s-rgn">0/17</span></div></div>
+</div>
+<div id="crosshair"></div>
+<img id="tool-icon" />
+<div id="hotbar"></div>
+<div id="tool-hud"></div>
+<div id="achv-panel"></div>
+<div id="region-indicator"></div>
+<div id="interact-prompt"><div class="ip-box">按 <span class="ip-key">E</span> 或 <span class="ip-key">左键点击</span> 开始学习 — <span id="ip-name"></span></div></div>
+<div id="npc-prompt"><div class="np-box">按 <span class="ip-key">F</span> 与 <span id="np-name"></span> 对话</div></div>
+<div id="npc-dialog"><div class="nd-card"><div class="nd-header"><div class="nd-avatar" id="nd-avatar"></div><div><span class="nd-name" id="nd-name"></span><span class="nd-role" id="nd-role"></span></div></div><div class="nd-body" id="nd-body"></div><div class="nd-footer" id="nd-footer"></div></div></div>
+<!-- Lock overlay -->
+<div class="ui-overlay" id="ov-lock"><div class="ui-backdrop" id="lock-bg"></div><div class="lock-dialog"><h3 id="lk-title">区域未解锁</h3><p id="lk-desc"></p><button class="btn-learn" id="lk-learn">开始学习</button><button class="btn-cancel" id="lk-back">返回游戏</button></div></div>
+<!-- Learning modal -->
+<div class="ui-overlay" id="ov-modal"><div class="ui-backdrop" id="modal-bg"></div><div class="modal-wrap"><div class="modal-header"><h2 id="m-title">模块</h2><button class="close-btn" id="m-close">&times;</button></div><div class="modal-body" id="m-body"></div></div></div>
+<!-- Celebration -->
+<div id="celeb"><canvas id="confetti"></canvas></div>
+<div class="ubanner" id="ubanner"><h2 id="ub-title">区域已解锁!</h2><p>你现在可以在此区域自由探索和建造了</p><button class="btn-p" id="ub-ok">开始探索</button></div>
+
+<script>
+// ============ BIOME DEFINITIONS ============
+const BIOMES = {
+  forest:     {name:'森林',    sky:0x87ceeb, fog:0x87ceeb, ground:0x4caf50, groundDark:0x388e3c, sub:0x795548, deep:0x5d4037, tree:true,  treeLeaf:0x2e7d32, treeTrunk:0x5d4037, water:false,
+               blocks:[{n:'橡木',c:0x8d6e63},{n:'桦木',c:0xd7ccc8},{n:'树叶',c:0x388e3c},{n:'草地',c:0x66bb6a},{n:'泥土',c:0x795548},{n:'石头',c:0x9e9e9e},{n:'花朵',c:0xe91e63},{n:'蘑菇',c:0xff5722}],
+               specials:[{n:'萤火虫灯',c:0x76ff03,glow:true},{n:'精灵木',c:0x00e676,glow:true}]},
+  desert:     {name:'沙漠',    sky:0xf0d9a0, fog:0xe8cc8a, ground:0xfdd835, groundDark:0xf9a825, sub:0xe6b422, deep:0xbf8c30, tree:false, cactus:true, water:false,
+               blocks:[{n:'沙子',c:0xfdd835},{n:'砂岩',c:0xe6b422},{n:'红砂',c:0xd84315},{n:'粘土',c:0xbcaaa4},{n:'仙人掌',c:0x2e7d32},{n:'骨块',c:0xefebe9},{n:'黄石',c:0xffb300},{n:'琥珀',c:0xff8f00}],
+               specials:[{n:'太阳石',c:0xffab00,glow:true},{n:'流沙晶',c:0xffe082,glass:true}]},
+  snow:       {name:'雪地',    sky:0xd0e8f2, fog:0xc5dde8, ground:0xeceff1, groundDark:0xcfd8dc, sub:0xb0bec5, deep:0x78909c, tree:true, treeLeaf:0x1b5e20, treeTrunk:0x4e342e, water:false,
+               blocks:[{n:'雪块',c:0xfafafa},{n:'冰砖',c:0x81d4fa},{n:'冻石',c:0x90a4ae},{n:'云杉木',c:0x4e342e},{n:'针叶',c:0x1b5e20},{n:'石头',c:0x78909c},{n:'蓝冰',c:0x29b6f6},{n:'霜晶',c:0x4fc3f7}],
+               specials:[{n:'极光冰',c:0x80deea,glass:true},{n:'永冻晶',c:0x4dd0e1,glow:true}]},
+  wetland:    {name:'湿地',    sky:0x90a9b7, fog:0x7e9aac, ground:0x6d8764, groundDark:0x556b2f, sub:0x5d4037, deep:0x3e2723, tree:true, treeLeaf:0x558b2f, treeTrunk:0x3e2723, water:true,
+               blocks:[{n:'苔石',c:0x6d8764},{n:'泥块',c:0x5d4037},{n:'芦苇',c:0x9e9d24},{n:'莲叶',c:0x4caf50},{n:'淤泥',c:0x4e342e},{n:'藤蔓',c:0x33691e},{n:'粘土',c:0x8d6e63},{n:'青苔',c:0x558b2f}],
+               specials:[{n:'沼气灯',c:0xaeea00,glow:true},{n:'琥珀苔',c:0xc6ff00,glass:true}]},
+  volcano:    {name:'火山岩地',sky:0x5c3a21, fog:0x4a2c16, ground:0x424242, groundDark:0x212121, sub:0x3e2723, deep:0x1b1b1b, tree:false, water:false, lava:true,
+               blocks:[{n:'玄武岩',c:0x37474f},{n:'黑曜石',c:0x1a1a2e},{n:'岩浆石',c:0xbf360c},{n:'熔岩砖',c:0xd84315},{n:'灰烬',c:0x616161},{n:'火石',c:0xff6f00},{n:'暗岩',c:0x263238},{n:'红岩',c:0xc62828}],
+               specials:[{n:'熔岩灯',c:0xff3d00,glow:true},{n:'火焰晶',c:0xff6e40,glow:true}]},
+  ocean:      {name:'海洋',    sky:0x64b5f6, fog:0x42a5f5, ground:0xfdd835, groundDark:0xe6b422, sub:0x8d6e63, deep:0x5d4037, tree:false, water:true, coral:true,
+               blocks:[{n:'珊瑚',c:0xe91e63},{n:'海绵',c:0xffeb3b},{n:'棱镜石',c:0x00bcd4},{n:'沙子',c:0xfdd835},{n:'贝壳',c:0xfce4ec},{n:'海藻',c:0x00695c},{n:'珍珠',c:0xf3e5f5},{n:'蓝石',c:0x0277bd}],
+               specials:[{n:'深海灯',c:0x00b0ff,glow:true},{n:'海晶石',c:0x18ffff,glass:true}]},
+  cherry:     {name:'樱花林',  sky:0xf8bbd0, fog:0xf48fb1, ground:0x66bb6a, groundDark:0x4caf50, sub:0x795548, deep:0x5d4037, tree:true, treeLeaf:0xf48fb1, treeTrunk:0x5d4037, water:false,
+               blocks:[{n:'樱木',c:0x8d6e63},{n:'樱叶',c:0xf48fb1},{n:'花瓣',c:0xf8bbd0},{n:'草地',c:0x66bb6a},{n:'粉石',c:0xf06292},{n:'白石',c:0xfce4ec},{n:'灯笼',c:0xff7043},{n:'竹子',c:0x81c784}],
+               specials:[{n:'樱花灯',c:0xf06292,glow:true},{n:'花晶石',c:0xf8bbd0,glass:true}]},
+  crystal:    {name:'水晶谷',  sky:0xce93d8, fog:0xba68c8, ground:0x7e57c2, groundDark:0x5e35b1, sub:0x4527a0, deep:0x311b92, tree:false, crystal:true, water:false,
+               blocks:[{n:'紫晶',c:0xce93d8},{n:'暗晶',c:0x7e57c2},{n:'荧石',c:0xffee58},{n:'月石',c:0xe1bee7},{n:'棱镜',c:0x00bcd4},{n:'虹石',c:0xef5350},{n:'星石',c:0xffd54f},{n:'魔石',c:0x5c6bc0}],
+               specials:[{n:'虹光石',c:0xea80fc,glow:true},{n:'暗能晶',c:0x7c4dff,glow:true}]},
+  savanna:    {name:'草原',    sky:0xb2dfdb, fog:0x80cbc4, ground:0xcddc39, groundDark:0xafb42b, sub:0x8d6e63, deep:0x6d4c41, tree:true, treeLeaf:0x689f38, treeTrunk:0x6d4c41, water:false, sparse:true,
+               blocks:[{n:'干草',c:0xcddc39},{n:'红土',c:0xbf360c},{n:'金合欢',c:0x6d4c41},{n:'黄花',c:0xfdd835},{n:'泥砖',c:0xa1887f},{n:'篱笆',c:0x8d6e63},{n:'陶罐',c:0xd7ccc8},{n:'旗帜',c:0xe53935}],
+               specials:[{n:'篝火石',c:0xff9100,glow:true},{n:'图腾块',c:0xd4e157,glow:true}]}
+};
+
+// Assign biomes to modules
+const BIOME_MAP = {
+  m1:'forest', m2:'ocean', m3:'cherry', m4:'savanna', m5:'desert', m6:'crystal',
+  m7:'volcano', m8:'wetland', m9:'snow', m10:'desert', m11:'cherry', m12:'volcano',
+  m13:'forest', m14:'savanna', m15:'ocean', m16:'crystal', m17:'snow'
+};
+
+// ============ COURSE DATA (compact) ============
+const MODULES=[
+{id:'m1',level:'初级',name:'AI认知解码',color:'#6c5ce7',courses:[
+{id:'c1_1',title:'AI范式革命',tools:['理论'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>人工智能的发展经历了三次重大浪潮。第一次是基于规则系统的专家系统时代，通过人工编写大量if-else规则来模拟专家决策。第二次是机器学习时代，算法能够从数据中自动学习规律，代表技术包括支持向量机、随机森林和深度学习。第三次则是当前的大模型时代，以GPT、通义千问等为代表，具备了通用语言理解和生成能力。</p><div class="highlight">AI不是替代人类，而是增强人类能力。理解这一核心理念是学习AI的第一步。</div><p>从能力维度看，AI主要具备三大核心能力：感知能力（语音识别、图像理解）、认知能力（语言理解、逻辑推理）、生成能力（文本生成、图像创作）。当前的大模型在认知和生成能力上取得了突破性进展。</p><ul><li>弱AI（专用AI）：只能在特定领域执行任务，如下棋、翻译</li><li>通用AI（AGI）：具备跨领域理解和推理能力，目前尚未完全实现</li><li>AI范式转变的核心：从"编程告诉机器怎么做"转变为"用数据让机器自己学"</li></ul><h4>关键启示</h4><p>在企业场景中，AI的价值不在于完全自动化，而在于将人类从重复性工作中解放出来，让人专注于创意、判断和决策等高价值活动。理解AI的边界和能力，才能更好地在工作中应用AI工具。</p>',quiz:[{q:'关于AI发展的三次浪潮，以下哪项描述最准确？',o:['第一次浪潮以深度学习为核心，实现了图像识别突破','第二次浪潮的机器学习时代包括支持向量机和随机森林等技术','三次浪潮之间是完全替代关系，后一次完全淘汰前一次','大模型时代的核心突破在于硬件算力而非算法架构'],a:1},{q:'以下关于AI能力分类的说法，哪项最准确？',o:['语音识别属于认知能力，因为需要理解语义','逻辑推理属于感知能力，因为需要接收信息','图像理解属于感知能力，语言理解属于认知能力','生成能力仅限于文本领域，不包括图像创作'],a:2},{q:'当你向同事解释"AI范式转变"时，以下哪种表述最恰当？',o:['AI的核心进步是硬件计算速度的提升使规则系统更快','从人工编写规则转变为让机器从数据中自主学习规律','AI范式转变意味着不再需要人类参与任何决策','通用AI已经完全实现，可以跨领域执行所有任务'],a:1}]},
+{id:'c1_2',title:'大模型原理',tools:['理论'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>大语言模型（LLM）的核心架构是Transformer，由Google在2017年的论文"Attention is All You Need"中提出。Transformer通过自注意力机制（Self-Attention）让模型能够理解文本中每个词与其他词之间的关系，从而捕获长距离依赖。</p><div class="highlight">大模型的核心训练目标：预测下一个token。通过在海量文本上反复进行这一简单任务，模型学会了语言的规律、知识和推理能力。</div><p>大模型的训练分为三个阶段：预训练（在海量数据上学习语言规律）、微调（在特定任务数据上优化）、对齐（通过RLHF等技术使输出符合人类期望）。模型参数量从数十亿到数千亿不等，参数越多通常能力越强，但也需要更多计算资源。</p><ul><li>Token：模型处理文本的最小单位，一个中文字通常是1-2个token</li><li>上下文窗口：模型一次能处理的最大token数量，决定了能"记住"多少内容</li><li>温度参数：控制输出的随机性，温度越高回答越有创意但可能不够准确</li></ul><p>理解这些基本原理，有助于我们在使用AI工具时做出更合理的预期，知道AI擅长什么、不擅长什么，以及如何通过调整参数获得更好的结果。</p>',quiz:[{q:'关于Transformer架构，以下哪项描述最准确？',o:['Transformer通过循环结构处理序列数据，类似RNN','Transformer通过自注意力机制捕获文本中词与词之间的关系','Transformer是一种生成对抗网络，用于图像生成','Transformer只能处理英文文本，不支持中文'],a:1},{q:'关于大模型训练的三个阶段，以下哪项排序和描述都正确？',o:['微调→预训练→对齐，其中预训练使用特定任务数据','预训练→微调→对齐，其中对齐通过RLHF使输出符合人类期望','预训练→对齐→微调，其中微调在海量数据上学习语言规律','对齐→预训练→微调，其中对齐是在标注数据上优化模型'],a:1},{q:'当你需要AI生成更有创意但可能不够精确的回答时，应该如何调整温度参数？',o:['将温度参数调低，因为低温度增加输出多样性','将温度参数调高，因为高温度增加输出随机性和创造性','温度参数与创造性无关，应该调整上下文窗口大小','保持默认温度不变，改为增加输入token数量'],a:1}]},
+{id:'c1_3',title:'MCP技术全景',tools:['理论'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>MCP（Model Context Protocol，模型上下文协议）是连接AI大模型与外部工具、数据源的标准化协议。它让AI模型不再局限于自身的训练数据，而是能够实时访问外部系统、调用工具、获取最新信息。</p><div class="highlight">MCP的核心价值：让AI从"只会聊天"进化为"能做事"的智能体。</div><p>MCP的工作原理类似于USB接口标准——它定义了AI模型与外部工具之间的通信规范。开发者只需按照MCP协议封装工具接口，AI模型就能自动发现、理解并调用这些工具。这大大降低了AI集成外部能力的开发成本。</p><ul><li>MCP Server：提供工具和数据的服务端，如数据库查询、API调用</li><li>MCP Client：AI模型侧的客户端，负责发现和调用MCP Server提供的能力</li><li>工具描述：每个工具都有标准化的功能描述，AI模型据此判断何时使用哪个工具</li></ul><p>在钉钉生态中，MCP技术被广泛应用于智能体开发，使AI助理能够操作钉钉文档、查询表格数据、发送消息等。掌握MCP的概念，对于后续学习AI智能体搭建至关重要。</p>',quiz:[{q:'关于MCP协议的定位，以下哪项描述最准确？',o:['MCP是一种大模型训练框架，用于提升模型参数量','MCP是连接AI模型与外部工具的标准化通信协议','MCP是一种数据加密传输协议，类似于HTTPS','MCP是一种模型压缩技术，用于减少推理延迟'],a:1},{q:'在MCP架构中，AI模型如何知道应该调用哪个工具？',o:['MCP Client随机选择一个可用的Server进行调用','每个MCP Server提供标准化的工具描述，AI据此判断','用户必须手动指定要调用的具体工具名称','MCP Router根据预设规则自动路由所有请求'],a:1},{q:'当你需要让AI助理操作钉钉文档和查询表格数据时，背后依赖的关键技术是？',o:['大模型直接内置了钉钉的所有功能代码','通过MCP协议让AI模型调用钉钉生态的工具接口','AI模型在训练时学习了钉钉的数据库结构','通过传统的API网关进行硬编码集成'],a:1}]},
+{id:'c1_4',title:'人机协作新范式',tools:['理论'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>人机协作经历了三个阶段的演进：工具辅助阶段（AI作为被动工具）、智能协作阶段（AI主动提供建议和支持）、思维共生阶段（人与AI深度融合共同完成复杂任务）。当前我们正处于从智能协作向思维共生过渡的关键时期。</p><div class="highlight">人类的核心优势在于价值判断、创意方向和情感共鸣——这些是AI短期内无法替代的能力。</div><p>高效的人机协作需要明确分工：AI负责数据处理、信息检索、初稿生成、格式整理等重复性工作；人类负责目标设定、质量把关、创意决策和最终判断。这种分工能让双方的优势互补，实现1+1>2的效果。</p><ul><li>AI擅长：海量数据处理、模式识别、多语言翻译、7×24不间断工作</li><li>人类擅长：价值判断、创意思维、情感理解、跨域联想、伦理决策</li><li>协作原则：人设定目标和标准，AI执行和优化，人审核和决策</li></ul><p>在实际工作中，建议采用"人类主导+AI赋能"的模式：先由人类明确任务目标和质量标准，交给AI完成初步执行，然后由人类审核、修改和优化结果。这样既发挥了AI的效率优势，又保证了人类的控制力和判断力。</p>',quiz:[{q:'关于人机协作中人类的核心优势，以下哪项分析最深入？',o:['人类优势在于处理速度比AI更快','人类优势在于记忆容量比AI更大','人类优势在于价值判断、创意方向和跨域联想等AI短期内无法替代的能力','人类优势在于能24小时不间断工作'],a:2},{q:'当你需要完成一份重要的行业分析报告时，以下哪种人机协作方式最高效？',o:['完全由AI生成报告，人类直接提交','人类设定目标和标准，AI完成初稿，人类审核优化和补充判断','先由人类手写全文，再让AI检查拼写错误','让AI独立决定分析框架和结论，人类只负责排版'],a:1}]},
+{id:'c1_5',title:'AI办公安全守则',tools:['理论'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>在企业中使用AI工具时，数据安全是首要考虑因素。核心原则是：绝对不要将公司核心机密、客户隐私数据和敏感财务信息输入公共AI服务。即使是看似无害的数据片段，在被AI处理后也可能被泄露或用于模型训练。</p><div class="highlight">安全第一原则：使用脱敏示例数据代替真实敏感数据进行AI交互。</div><p>企业AI安全守则包含以下层面：数据分级管理（明确哪些数据可以使用AI处理）、工具选择（优先使用企业级私有化部署的AI服务）、输出审核（AI生成内容必须经过人工审核后才能对外发布）、权限管控（不同岗位使用不同权限的AI工具）。</p><ul><li>禁止输入：客户数据库、财务报表原始数据、员工个人信息、商业合同条款</li><li>允许使用：脱敏后的示例数据、公开的行业知识、通用的格式模板</li><li>必须审核：AI生成的对外文档、营销内容、决策建议</li></ul><p>建议企业制定AI使用规范手册，定期开展安全意识培训，并建立AI使用事故的上报和处理机制。安全是AI落地的基础，只有在安全可控的前提下，AI才能真正为企业创造价值。</p>',quiz:[{q:'在使用AI处理企业数据时，以下哪种做法最符合安全规范？',o:['将客户数据的关键字段脱敏后使用AI分析趋势','使用企业内网AI时无需考虑数据分级，因为已经在内网','将完整合同文本输入公共AI来检查法律条款','先让AI生成分析报告再考虑数据安全问题'],a:0},{q:'关于AI生成内容的发布流程，以下哪项做法最合理？',o:['AI生成的内部文档无需审核可直接使用','AI生成的对外营销文案应经人工审核确认后发布','只要使用企业版AI工具，生成内容就无需审核','AI生成内容的准确性已经足够高，审核会降低效率'],a:1},{q:'当你需要用AI辅助分析客户反馈趋势时，以下哪种数据处理方式最安全？',o:['直接上传原始客户反馈数据库到公共AI平台','使用脱敏后的示例数据，通过企业私有化部署的AI进行分析','将客户姓名替换为编号后上传到任意AI平台即可','只要AI服务声明了数据安全保障就可以上传完整数据'],a:1}]},
+{id:'c1_6',title:'Prompt工程入门',tools:['理论'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>Prompt工程是与AI大模型高效沟通的技术。好的Prompt能让AI输出准确、结构化、高质量的内容，而模糊的Prompt往往导致无用的回答。掌握Prompt工程是每个AI使用者的必备技能。</p><div class="highlight">Prompt四要素：角色（Role）、任务（Task）、格式（Format）、约束（Constraint）。</div><p>角色设定告诉AI"你是谁"，例如"你是一位资深的人力资源顾问"；任务描述告诉AI"要做什么"，要具体明确；格式要求告诉AI"怎么输出"，如表格、列表、分段等；约束条件告诉AI"有什么限制"，如字数限制、语气要求等。</p><ul><li>角色：设定AI的专业身份，帮助它调用相关知识领域</li><li>任务：明确、具体地描述需要完成的工作</li><li>格式：指定输出的结构，如Markdown表格、编号列表、JSON格式</li><li>约束：设定边界条件，如"不超过200字""使用正式语气""只用中文"</li></ul><p>实际使用技巧：先写一个基础Prompt，观察AI的输出，然后逐步添加细节和约束来优化结果。不要期望一次就得到完美输出，Prompt工程是一个迭代优化的过程。</p>',quiz:[{q:'Prompt四要素中"约束"的作用是什么？',o:['告诉AI应该扮演什么角色身份','明确AI需要完成的具体工作内容','设定输出的边界条件如字数限制和语气要求','指定输出的结构形式如表格或列表'],a:2},{q:'以下四个Prompt哪个在实际使用中最可能获得高质量输出？',o:['帮我分析一下市场情况，要求全面深入','你是一位资深市场分析师，请从市场规模、竞争格局和用户需求三个维度分析新能源汽车市场，每个维度不超过200字，使用数据支撑','请用专业的方式写一份关于市场的分析报告，要详细一些','分析市场趋势并给出建议，格式不限'],a:1},{q:'关于Prompt工程的迭代优化方法，以下哪项说法最准确？',o:['好的Prompt应该一次写到位，如果需要修改说明Prompt技能不足','应先写基础Prompt观察输出，然后逐步添加角色、格式和约束来优化','Prompt越短效果越好，因为减少了AI的理解负担','Prompt必须使用英文才能获得最佳效果'],a:1}]},
+{id:'c1_7',title:'Prompt工程进阶',tools:['理论'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>进阶Prompt技术能显著提升AI输出的准确性和深度。思维链（Chain of Thought, CoT）是最重要的进阶技术之一，它通过引导AI"分步骤思考"来提升复杂推理任务的准确率。研究表明CoT可以将数学推理准确率提升20-40%。</p><div class="highlight">核心技巧：让AI"展示推理过程"而不是直接给出答案，用"请一步步分析"来触发CoT。</div><p>Few-shot提示是另一个强大的技术：在Prompt中给出2-3个输入输出示例，AI会模仿这些示例的模式来处理新的输入。这在格式化输出、分类任务中特别有效。Zero-shot则是不给示例直接提问，适合简单任务。</p><ul><li>思维链（CoT）：让AI分步推理，适合数学计算、逻辑分析、决策评估</li><li>Few-shot：提供示例引导输出格式和风格，适合分类、格式转换</li><li>自洽性检验：让AI多次回答同一问题，取最一致的结果</li><li>角色扮演深化：设定详细的角色背景，使AI输出更专业</li></ul><p>高级应用场景包括：用CoT进行多维度竞品分析、用Few-shot批量处理数据格式转换、通过多轮对话逐步深入复杂主题。掌握这些技术后，你与AI的协作效率将大幅提升。</p>',quiz:[{q:'Prompt工程中的CoT（思维链）技术主要解决的是什么问题？',o:['提升AI的文本生成速度','通过引导AI分步推理来提升复杂任务的准确率','减少AI生成内容的长度','让AI模仿特定的写作风格'],a:1},{q:'关于Few-shot和Zero-shot提示的区别，以下哪项描述最准确？',o:['Few-shot需要提供大量训练数据重新训练模型','Zero-shot不给示例直接提问，Few-shot在Prompt中提供少量输入输出示例引导AI','Few-shot只能用于文本分类，不能用于内容生成','Zero-shot的效果在所有场景下都优于Few-shot'],a:1},{q:'当你需要让AI分析一个产品在价格、功能、服务、品牌四个维度相对竞品的优劣势时，最适合使用哪种进阶Prompt技术？',o:['只使用简短指令让AI自由发挥','使用CoT引导AI逐维度分步分析并展示推理过程','使用Zero-shot让AI直接给出结论即可','让AI多次回答取最短的结果'],a:1}]},
+{id:'c1_8',title:'钉钉AI操作系统',tools:['理论'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉已从传统的企业协作平台进化为企业级智能化操作系统。它将AI能力深度集成到沟通、协作、管理的每个环节，形成了一个完整的AI+办公生态。钉钉AI的目标是让每个企业、每个员工都能轻松使用AI提升工作效率。</p><div class="highlight">钉钉AI操作系统的定位：不是单一AI工具，而是企业级智能化操作系统平台。</div><p>钉钉AI生态包含多个层面：底层是通义大模型提供的AI基座能力；中间层是各类AI原生应用（如AI助理、AI表格、AI创作）；上层是基于DEAP平台的自定义智能体和工作流。企业可以根据自身需求，灵活组合这些能力。</p><ul><li>AI助理：全天候的智能工作伙伴，支持自然语言交互</li><li>AI表格：低代码应用搭建平台，用自然语言操作数据</li><li>DEAP平台：企业级智能体开发平台，支持自定义AI应用</li><li>MCP生态：连接AI与外部工具的标准化协议</li></ul><p>钉钉AI操作系统的核心优势在于：企业级的数据安全保障、与组织架构和业务流程的深度集成、丰富的开放平台生态、以及持续进化的AI能力。这使得钉钉成为企业AI转型的理想起点。</p>',quiz:[{q:'关于钉钉AI操作系统的架构层级，以下哪项描述最准确？',o:['底层是各类AI应用，上层是通义大模型提供算力支撑','底层是通义大模型AI基座，中间是AI原生应用，上层是基于DEAP的自定义智能体','钉钉AI只有单一的AI助理层，没有分层架构','DEAP平台是钉钉AI的底层基座，通义大模型是上层应用'],a:1},{q:'企业选择钉钉AI进行数字化转型的核心优势是什么？',o:['完全免费使用所有AI功能没有任何限制','与组织架构和业务流程深度集成并具备企业级数据安全保障','钉钉AI使用了独家的闭源技术不依赖任何大模型','钉钉AI可以完全替代企业的IT部门'],a:1},{q:'当你为企业规划AI应用落地时，钉钉AI生态中DEAP平台的核心价值是什么？',o:['DEAP是钉钉的即时通讯引擎，负责消息收发','DEAP是企业级智能体开发平台，支持自定义AI应用的搭建','DEAP是钉钉的数据库管理工具，用于存储企业数据','DEAP是钉钉的视频会议系统，支持远程协作'],a:1}]}
+]},
+{id:'m2',level:'初级',name:'智能办公新时代',color:'#0984e3',courses:[
+{id:'c2_1',title:'AI总结IM消息',tools:['消息助理'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>在日常工作中，群聊消息往往堆积成百上千条，回到工位后很难快速了解重要信息。钉钉消息助理利用AI技术，能自动总结群聊中的关键内容，提取讨论要点和待办事项，帮助用户在几秒内掌握核心信息。</p><div class="highlight">核心能力：一键总结未读消息，自动提取关键决策和待办事项。</div><p>使用方法非常简单：打开群聊，点击AI总结按钮，系统会自动分析聊天记录，生成结构化的摘要。摘要通常包含讨论主题、关键结论、待办事项和@提及等信息。对于长时间未查看的群聊特别有用。</p><ul><li>支持自定义总结时间范围，如最近1小时、今天、本周</li><li>自动识别讨论中的决策结论和行动项</li><li>可以追问AI获取更详细的信息</li></ul><p>实际场景举例：出差三天回来后，面对20个工作群的上千条未读消息，使用AI总结功能只需5分钟即可全部掌握重要信息。这大大提升了信息获取效率，避免遗漏关键事项。</p>',quiz:[{q:'AI消息总结功能与手动浏览消息相比，其核心价值体现在哪里？',o:['AI会删除不重要的消息以减少信息量','AI能自动提取讨论要点和待办事项，帮助快速掌握核心信息','AI只是将消息按时间排序方便阅读','AI会自动回复所有未读消息省去人工操作'],a:1},{q:'当你出差回来面对多个工作群的大量未读消息时，最高效的处理方式是？',o:['逐条阅读所有消息确保不遗漏任何信息','直接标记所有消息为已读避免信息过载','使用AI总结功能按群分别获取关键信息摘要','只查看包含@自己的消息忽略其他内容'],a:2},{q:'AI总结生成的摘要通常包含哪些结构化信息？',o:['每条消息的发送时间和发送者头像','讨论主题、关键结论、待办事项和重要提及','群成员的在线状态和活跃度排名','所有消息的完整原文和翻译版本'],a:1}]},
+{id:'c2_2',title:'会议日程智能管理',tools:['钉钉会议'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉会议提供从会前准备、会中协作到会后跟进的全生命周期智能管理。AI可以帮助自动查找参会者空闲时间、智能排期、发送日程提醒，大幅减少会议组织的时间成本。</p><div class="highlight">全生命周期管理：智能排期→自动通知→会中记录→会后纪要→待办跟踪。</div><p>会前阶段，AI会分析参会者的日程安排，推荐最优的会议时间段；会中阶段，支持实时字幕、多方协作和录制；会后阶段，自动生成会议纪要并分配待办。这种端到端的管理模式彻底改变了传统的会议组织方式。</p><ul><li>智能排期：自动查看多人日历，找出共同空闲时间</li><li>议程管理：提前设置会议议程，确保会议高效聚焦</li><li>自动提醒：会前多次提醒，减少迟到和缺席</li></ul><p>对于经常组织跨部门会议的员工来说，这项功能能节省大量协调时间。一个十人会议的排期从原来的30分钟邮件往返缩短到1分钟AI推荐。</p>',quiz:[{q:'钉钉会议的全生命周期管理涵盖哪些阶段？',o:['只包含会前排期和会后纪要两个阶段','涵盖智能排期、自动通知、会中记录、会后纪要到待办跟踪的完整闭环','只包含会中的实时字幕和录制功能','只包含会后的自动纪要生成功能'],a:1},{q:'AI智能排期的核心原理是什么？',o:['根据会议室的可用时间随机推荐一个时段','分析所有参会者的日历找出共同空闲时间并推荐最优方案','由发起人手动查看每个人的日历后选择时间','按照固定的周会时间自动创建会议'],a:1}]},
+{id:'c2_3',title:'AI会议纪要自动生成',tools:['AI听记'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>AI听记是钉钉的智能会议记录工具，能够实时将会议语音转录为文字，并自动识别不同说话人。会后AI会基于转录内容自动生成结构化的会议纪要，包含讨论要点、决策结论和行动待办。</p><div class="highlight">核心技术：语音转文字（ASR）+ 说话人识别（Speaker Diarization）+ 智能摘要。</div><p>使用AI听记后，参会者无需边开会边做笔记，可以全身心投入讨论。会后系统会自动生成纪要，参会者只需审核和补充即可。这不仅节省了记录时间，还避免了人工记录可能遗漏的重要信息。</p><ul><li>实时转录：支持中英文混合识别，准确率95%以上</li><li>说话人识别：自动区分每位发言者，标注发言人姓名</li><li>智能摘要：提取关键议题、决策结果、分配的行动项</li></ul><p>高级功能包括：会议内容全文搜索、关键片段回放、纪要自动分享给参会者。对于需要记录法律效力的会议，还可以保存完整的音频和转录文本作为留档。</p>',quiz:[{q:'AI听记的核心技术链路是什么？',o:['视频录制加上人脸识别加上自动剪辑','语音转文字（ASR）加上说话人识别加上智能摘要生成','文档扫描加上OCR识别加上自动归档','实时翻译加上字幕生成加上语音合成'],a:1},{q:'使用AI听记后，参会者的工作方式发生了什么变化？',o:['参会者无需参加会议，只看AI生成的纪要即可','参会者可以全身心投入讨论，会后审核AI自动生成的纪要','参会者仍需手动记录，AI只是提供录音备份','AI听记替代了会议主持人的角色'],a:1},{q:'关于AI听记生成的会议纪要，以下哪种处理方式最合理？',o:['AI生成的纪要已经非常准确，可以直接作为正式记录分发','应由参会者审核和补充后再作为正式纪要使用','只保留AI的语音转录文本，不需要结构化的纪要','会议纪要只需保存音频文件，不需要文字版本'],a:1}]},
+{id:'c2_4',title:'知识库自动化撰写',tools:['知识库'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>企业知识库是组织智慧的沉淀和传承载体。钉钉知识库结合AI能力，能够自动检索已有资料并辅助撰写新文档，将分散在各处的信息系统化地组织起来，形成可检索、可复用的知识资产。</p><div class="highlight">核心价值：将碎片化的团队知识集中管理，通过AI实现智能检索和自动化撰写。</div><p>AI辅助撰写功能可以根据关键词或大纲自动生成初稿，大幅缩短文档编写时间。同时，AI能分析已有知识库内容，发现信息缺失和重复，帮助维护知识库的完整性和准确性。</p><ul><li>智能检索：自然语言提问，AI从知识库中找到最相关的答案</li><li>自动撰写：输入主题或大纲，AI生成结构化的文档初稿</li><li>知识关联：自动发现文档之间的关联关系，建立知识图谱</li></ul><p>实际应用场景：新员工培训手册编写、产品FAQ自动更新、项目经验沉淀等。一个完善的AI知识库能让新员工入职培训时间缩短50%以上。</p>',quiz:[{q:'钉钉知识库中AI智能检索与传统关键词搜索的核心区别是什么？',o:['AI检索速度更快但结果相同','AI检索支持自然语言提问并理解语义返回最相关的答案','传统搜索比AI检索更准确因为关键词匹配更精确','AI检索只能搜索标题不能搜索正文内容'],a:1},{q:'使用AI辅助知识库撰写时，以下哪种工作流程最有效？',o:['完全由AI撰写所有文档内容确保风格统一','AI根据主题或大纲生成初稿后由专业人员审核和完善','只用AI生成文档标题和目录其余全部手动编写','让AI分析旧文档后自动删除过时内容并替换'],a:1}]},
+{id:'c2_5',title:'智能翻译',tools:['会议翻译'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉会议翻译功能支持多语种实时翻译，让跨语言沟通变得无障碍。会议中参会者说中文，外国同事可以实时看到英文字幕，反之亦然。这彻底打破了语言壁垒，使跨国协作更加高效。</p><div class="highlight">支持中、英、日、韩等多语种实时互译，延迟仅1-2秒。</div><p>除了实时会议翻译，钉钉还支持文档翻译和消息翻译。用户可以在聊天中直接翻译任意一条消息，或将整个文档翻译成目标语言。翻译质量基于大模型技术，能理解上下文语境，比传统机器翻译更准确。</p><ul><li>实时字幕翻译：会议发言实时转译为多种语言的字幕</li><li>文档翻译：一键翻译整篇文档，保留原始格式</li><li>消息翻译：单条消息即时翻译，支持自动翻译模式</li></ul><p>适用场景包括：跨国团队日常会议、海外客户沟通、多语言文档协作、国际项目管理等。对于有海外业务的企业来说，这项功能能显著降低沟通成本。</p>',quiz:[{q:'钉钉智能翻译在跨国会议中最突出的技术优势是什么？',o:['支持离线翻译不需要网络连接','基于大模型能理解上下文语境，翻译质量高于传统机器翻译','只支持中英两种语言的翻译','需要参会者先手动输入文字再翻译'],a:1},{q:'当你需要与海外同事进行实时视频会议时，钉钉翻译功能如何帮助消除语言障碍？',o:['会议结束后生成翻译文档供参会者阅读','需要参会者暂停发言等待翻译完成后再继续','参会者发言时实时生成多语种字幕，延迟仅1-2秒','需要专业翻译人员在后台手动输入翻译内容'],a:2}]},
+{id:'c2_6',title:'钉钉AI助理',tools:['AI助理'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉AI助理是你的全天候智能工作伙伴，能够理解自然语言指令并帮助完成各种办公任务。从查询信息、撰写文档到分析数据，AI助理都能提供及时的支持。它深度集成了钉钉的各项能力，是使用钉钉AI生态的统一入口。</p><div class="highlight">最大特点：全天候、全场景陪伴，通过自然语言交互完成工作任务。</div><p>AI助理的使用场景非常广泛：你可以让它帮你总结一份文档的要点、起草一封邮件、分析表格中的数据趋势、或者查找公司知识库中的信息。它会根据你的需求自动调用合适的工具和能力。</p><ul><li>信息查询：快速查找公司通讯录、制度规范、知识库内容</li><li>内容生成：撰写邮件、报告、方案等各类职场文档</li><li>数据分析：解读表格数据，生成分析报告和图表</li><li>任务管理：创建待办、设置提醒、查看日程安排</li></ul><p>使用技巧：用清晰具体的自然语言与AI助理交流，描述你需要什么、背景是什么、有什么要求。AI助理支持多轮对话，可以逐步细化需求，获得越来越满意的结果。</p>',quiz:[{q:'钉钉AI助理作为"统一入口"的含义是什么？',o:['AI助理只能在一个固定页面中使用','通过AI助理可以调用钉钉生态中的各项工具和能力完成不同任务','AI助理只能回答预设的固定问题列表','每种任务需要使用不同的AI工具入口'],a:1},{q:'以下哪个任务超出了AI助理当前的能力范围？',o:['总结一份长文档的核心要点','根据表格数据生成趋势分析图表','代替管理者做出重要的业务战略决策','查找公司知识库中的制度规范信息'],a:2},{q:'与AI助理高效交互的最佳策略是什么？',o:['使用最简短的指令以减少AI的处理负担','用清晰具体的语言描述需求背景和要求，支持多轮对话逐步细化','每次只能提出一个问题不支持追问','需要使用特定的命令格式和代码语法'],a:1}]}
+]},
+{id:'m3',level:'初级',name:'AI专业写作流水线',color:'#e17055',courses:[
+{id:'c3_1',title:'AI搜问',tools:['AI搜问'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>AI搜问是钉钉提供的企业级安全AI搜索工具。与公共AI搜索不同，AI搜问能在保障数据安全的前提下，从企业内部知识库、文档和互联网中检索信息，并用AI生成结构化的回答。</p><div class="highlight">核心优势：企业级数据安全+内外部知识融合搜索+AI生成式回答。</div><p>使用AI搜问时，你可以用自然语言提出问题，系统会同时搜索企业内部文档和互联网信息，将相关内容整合后给出结构化的答案。答案会标注信息来源，方便用户验证和深入了解。</p><ul><li>企业内部搜索：搜索公司知识库、文档、聊天记录中的信息</li><li>互联网搜索：获取行业动态、竞品信息等外部知识</li><li>AI整合回答：将多个信息源的内容融合为一个完整的回答</li></ul><p>典型应用场景：快速查找公司制度规定、了解项目历史背景、获取行业报告摘要、回答客户技术问题。相比传统搜索引擎，AI搜问能节省80%的信息检索时间。</p>',quiz:[{q:'AI搜问与普通搜索引擎的关键区别在于哪个方面？',o:['AI搜问的搜索速度更快但结果格式相同','AI搜问能同时搜索企业内部文档和互联网并生成整合性回答','AI搜问只能搜索企业内部数据无法访问互联网','AI搜问本质上是一个优化过的关键词匹配引擎'],a:1},{q:'当你用AI搜问查询信息时，为什么回答中标注信息来源很重要？',o:['标注来源是为了展示搜索到的文档数量','标注来源方便用户验证信息准确性并深入了解原始内容','标注来源只是界面美观的设计没有实际意义','标注来源是为了证明AI没有编造内容因此无需人工验证'],a:1},{q:'在以下场景中，AI搜问最能体现其企业级价值的是？',o:['搜索公开的天气信息和新闻热点','在保障数据安全的前提下查询公司内部制度并融合行业最新动态','替代专业顾问提供法律和财务建议','自动修改企业内部文档的内容和权限'],a:1}]},
+{id:'c3_2',title:'AI创作',tools:['钉钉创作'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉创作是一站式AI内容生成工具，专为职场文档创作场景设计。它能快速生成工作邮件、通知公告、项目报告、活动策划、工作总结等各类职场文档，帮助员工从写作困难中解放出来。</p><div class="highlight">输入主题和要求，AI即可生成专业的职场文档初稿，效率提升10倍以上。</div><p>钉钉创作支持多种文档类型和风格选择。用户只需输入文档主题、目标受众和关键信息点，AI会自动选择合适的结构和语气生成初稿。生成后还可以使用AI进行润色、扩写、缩写、改变语气等二次编辑。</p><ul><li>支持文档类型：邮件、报告、方案、通知、总结、分析等</li><li>风格控制：正式、轻松、简洁、详细等多种风格切换</li><li>二次编辑：AI润色、扩写、缩写、改变语气、翻译</li></ul><p>使用建议：先用AI生成初稿，然后根据实际情况进行修改和补充。将个人经验和专业判断融入AI生成的框架中，能产出既高效又有深度的文档。</p>',quiz:[{q:'关于钉钉创作的AI二次编辑功能，以下哪项理解最准确？',o:['二次编辑只能修改文档的字体和排版格式','生成初稿后可以使用AI进行润色、扩写、缩写和语气调整等操作','AI创作只能一次性生成内容不支持后续修改','二次编辑需要重新输入完整的文档要求'],a:1},{q:'使用AI创作生成职场文档的最佳实践是什么？',o:['直接使用AI生成的初稿无需修改可以保证风格统一','AI生成初稿后将个人经验和专业判断融入其中进行修改完善','AI创作只适合生成非正式文档正式文档应完全手动编写','输入越少的信息AI生成的内容越精准因为减少了约束'],a:1}]},
+{id:'c3_3',title:'文档智能协作',tools:['钉钉文档'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉文档是集AI写作辅助和多人实时协作于一体的在线文档工具。它支持AI续写、内容优化、格式调整等智能功能，同时允许多人同时编辑同一份文档，实时看到彼此的修改。</p><div class="highlight">AI+协作双引擎：AI辅助写作提升个人效率，多人协作提升团队效率。</div><p>AI写作辅助功能包括：选中一段文字让AI续写后续内容、将一段话扩展成完整段落、将长文缩写成摘要、优化文字表达使其更专业流畅。这些功能可以在写作过程中随时调用。</p><ul><li>AI续写：根据已有内容自动生成后续段落</li><li>智能排版：一键将文档调整为专业格式</li><li>多人协作：实时同步编辑，支持评论和@提醒</li><li>版本管理：自动保存历史版本，支持回溯和对比</li></ul><p>协作技巧：善用评论功能进行异步讨论，使用@功能通知相关人员，利用AI快速生成初稿后分工细化各章节。这种"AI打底+团队协作"的模式是最高效的文档创作方式。</p>',quiz:[{q:'钉钉文档的"AI+协作双引擎"模式指的是什么？',o:['AI负责所有写作工作，协作功能仅用于文档分享','AI辅助写作提升个人效率，多人实时协作提升团队效率','AI引擎和协作引擎是两个独立产品需要分别使用','协作功能会自动调用AI修改其他人编写的内容'],a:1},{q:'团队协作编写长文档时，以下哪种工作方式最高效？',o:['一个人负责用AI生成全部内容其他人只负责校对','AI先生成整体框架初稿，团队成员分工认领不同章节进行细化','每个人独立使用AI生成各自负责的部分最后合并','先由团队手动完成全部内容最后用AI统一润色'],a:1}]},
+{id:'c3_4',title:'脑图可视化',tools:['钉钉脑图'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉脑图结合AI能力，能将文本内容自动转换为结构化的思维导图。用户只需输入一段文字或一个主题，AI会自动分析其逻辑结构并生成层次清晰的脑图。这大大加速了头脑风暴和知识梳理的过程。</p><div class="highlight">AI自动分析文本逻辑，一键生成多层级思维导图，支持团队实时共创。</div><p>脑图可视化在多种场景中极为有效：项目规划时梳理任务分解、读书笔记的知识整理、会议讨论的思路汇总、产品需求的功能拆解等。相比纯文字，可视化的脑图能帮助团队更快速地理解复杂信息。</p><ul><li>AI生成：输入主题自动生成多级思维导图</li><li>文本转脑图：将已有文档内容自动转化为可视化结构</li><li>团队协作：多人同时编辑脑图，实时同步</li><li>导出分享：支持导出为图片或PDF，方便分享</li></ul><p>实用技巧：用AI先生成一个基础脑图框架，然后团队成员分别认领不同分支进行细化。这种方式比从零开始画脑图要快5-10倍。</p>',quiz:[{q:'钉钉脑图的AI功能相比手动绘制思维导图的核心优势是什么？',o:['AI生成的脑图颜色更丰富视觉效果更好','AI能自动分析文本逻辑结构并生成层次化的思维导图大幅提升效率','AI脑图只能生成固定模板的结构无法自定义','AI脑图生成后不支持人工修改和调整'],a:1},{q:'当团队需要对一个复杂项目进行任务分解时，使用AI脑图的最佳策略是？',o:['每个团队成员各自生成一个脑图最后合并','用AI先生成基础框架再由团队成员分别认领不同分支进行细化','只用AI生成最终版本不需要团队参与调整','手动绘制所有节点后让AI自动重新排列位置'],a:1}]},
+{id:'c3_5',title:'白板实时共创',tools:['钉钉白板'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉白板提供无限画布的创意协作空间，支持团队成员实时在同一块白板上进行头脑风暴、流程设计、原型绘制等创作活动。AI功能可以辅助生成图形元素、整理白板内容、生成总结。</p><div class="highlight">无限画布+实时协作+AI辅助=团队创意工作的最佳工具。</div><p>白板支持丰富的内容元素：便签、文本框、形状、连接线、图片、文档嵌入等。团队可以在白板上自由组合这些元素，以视觉化的方式表达和组织想法。AI可以帮助将白板内容整理成结构化文档。</p><ul><li>头脑风暴：团队成员同时贴便签，AI帮助归类和总结</li><li>流程设计：拖拽绘制业务流程图和架构图</li><li>原型绘制：快速绘制产品原型和界面草图</li><li>会议记录：在白板上实时记录和组织讨论内容</li></ul><p>与传统的线下白板不同，钉钉白板的内容永久保存、支持远程协作、可以随时回顾和继续编辑。对于分布式团队来说，这是进行创意协作的理想工具。</p>',quiz:[{q:'钉钉白板相比传统线下白板最具差异化的优势是什么？',o:['白板上只能使用文字不支持图形元素','支持远程实时协作且内容永久保存可随时回顾编辑','钉钉白板的画布大小有严格限制','白板内容无法导出为其他格式进行分享'],a:1},{q:'在团队头脑风暴场景中，AI如何辅助提升白板协作的效率？',o:['AI自动替代团队成员生成所有创意想法','AI可以帮助将白板上的散乱内容归类整理并生成结构化文档','AI只能在白板上绘制标准几何图形','AI会自动删除团队成员认为质量不高的便签内容'],a:1}]},
+{id:'c3_6',title:'AI生成PPT',tools:['AI PPT'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>AI PPT功能让演示文稿的制作变得前所未有地简单。只需输入演讲主题或大纲，AI会自动生成完整的PPT，包括内容编排、页面设计、图表布局和配色方案。传统需要数小时的PPT制作工作，现在几分钟即可完成。</p><div class="highlight">工作流程：输入主题→AI生成大纲→自动设计页面→智能排版配色→一键导出。</div><p>AI生成的PPT不是简单的模板填充，而是根据内容语义智能选择合适的布局形式。例如对比性内容会用对比图表，流程性内容会用流程图，数据性内容会用图表展示。用户可以在生成后自由修改任何元素。</p><ul><li>智能大纲：根据主题自动生成逻辑清晰的演讲大纲</li><li>设计排版：自动选择配色方案、字体和布局风格</li><li>图表生成：根据数据自动生成柱状图、饼图、折线图</li><li>一键修改：支持整体换风格、增删页面、调整内容</li></ul><p>使用建议：先让AI生成初版PPT，然后根据实际演讲需求进行重点页面的优化。重要场合的PPT建议在AI生成的基础上投入时间进行精细调整，确保内容准确、设计精致。</p>',quiz:[{q:'AI生成PPT时如何决定每页的布局形式？',o:['所有页面统一使用相同的固定模板布局','根据内容语义智能选择合适的布局，如对比内容用对比图表流程内容用流程图','用户必须为每一页手动指定使用哪种布局','AI随机选择布局形式以增加视觉多样性'],a:1},{q:'关于AI生成PPT的工作流程，以下哪项描述最完整？',o:['用户上传完整文稿AI负责添加配图和动画效果','输入主题后AI生成大纲再自动设计页面排版配色最后可一键导出','AI只负责生成文字内容用户需要自行选择模板和排版','用户需要先手动设计每页布局AI再填充具体内容'],a:1},{q:'在准备重要客户汇报的PPT时，以下哪种使用AI的策略最合理？',o:['AI生成的PPT已经足够专业可以直接用于正式汇报','让AI生成初版PPT后对重点页面进行精细调整确保内容准确设计精致','完全不用AI因为重要场合必须手动制作才能保证质量','只用AI生成封面和目录页其余页面全部手动制作'],a:1}]},
+{id:'c3_7',title:'AI视觉物料生成',tools:['钉钉创作'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉创作的视觉物料生成功能，让没有设计基础的员工也能快速制作专业的海报、名片、活动邀请函、社交媒体配图等视觉内容。AI会根据用户输入的文案和需求自动生成多种设计方案供选择。</p><div class="highlight">零设计基础也能极速生成专业视觉物料：海报、名片、邀请函、社交配图。</div><p>工作流程非常简单：选择物料类型→输入文案和关键信息→选择风格偏好→AI生成多个设计方案→选择并微调→导出使用。整个过程通常只需2-3分钟，而传统设计可能需要数小时甚至需要外包给设计师。</p><ul><li>海报设计：活动海报、促销海报、招聘海报自动生成</li><li>名片制作：输入信息一键生成多种风格名片</li><li>社交配图：适配微信、微博等不同平台的尺寸和风格</li><li>批量生成：同一模板批量替换内容，适合系列物料</li></ul><p>对于中小企业和非设计岗位的员工来说，这项功能彻底解决了"设计难"的痛点。日常的视觉物料需求可以自助完成，只有品牌级别的重要设计才需要专业设计师参与。</p>',quiz:[{q:'AI视觉物料生成功能对企业日常运营的最大价值是什么？',o:['完全替代专业设计师的所有工作','让非设计岗位员工也能快速自助完成日常视觉物料需求','只能生成简单的文字图片不支持复杂设计','需要先学习专业设计软件才能使用AI生成功能'],a:1},{q:'关于AI生成视觉物料的工作流程，以下哪项描述最准确？',o:['用户需要提供完整的设计稿AI负责微调颜色和字体','选择物料类型输入文案和关键信息后AI生成多个设计方案供选择和微调','AI只能从固定模板库中选择无法根据需求定制','每次只能生成一个设计方案不满意需要重新开始'],a:1}]}
+]},
+{id:'m4',level:'初级',name:'AI表格业务轻应用',color:'#00b894',courses:[
+{id:'c4_1',title:'AI表格平台（一）',tools:['AI表格'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>钉钉AI表格不是传统的电子表格，而是一个强大的低代码应用搭建平台。它让业务人员无需编程就能创建客户管理系统、项目跟踪工具、库存管理应用等各种业务系统，是企业数字化转型的利器。</p><div class="highlight">核心定位：低代码应用搭建平台，让业务人员成为应用开发者。</div><p>AI表格的基础操作包括创建表格、添加字段、录入数据、设置筛选和排序。与Excel不同，AI表格的每一行是一条"记录"，每一列是一个"字段"，字段有明确的类型定义（文本、数字、日期、附件等），这保证了数据的规范性。</p><ul><li>表格创建：选择空白表或模板快速开始</li><li>字段类型：支持文本、数字、日期、选项、附件、关联等20+种字段类型</li><li>数据录入：支持手动录入、表单采集、导入Excel等多种方式</li><li>筛选排序：灵活的条件筛选和多字段排序</li></ul><p>入门建议：先从简单的场景开始，如团队通讯录或项目任务清单，熟悉基础操作后再逐步构建更复杂的业务应用。</p>',quiz:[{q:'AI表格与传统Excel的本质区别是什么？',o:['AI表格是Excel的在线版本功能完全相同','AI表格本质上是低代码应用搭建平台，字段有明确类型定义保证数据规范性','AI表格只能处理数字数据不支持文本和日期','AI表格需要专业的编程知识才能创建和使用'],a:1},{q:'当你需要为团队搭建一个客户管理系统时，使用AI表格的正确起步方式是？',o:['直接创建一张包含所有信息的大表格开始录入数据','先从简单场景如通讯录入手熟悉基础操作后再构建复杂应用','必须先学习数据库理论和SQL语句才能开始','需要IT部门提前搭建好服务器环境'],a:1}]},
+{id:'c4_2',title:'AI表格平台（二）',tools:['AI表格'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>AI表格的进阶功能包括多种视图管理和精细的权限控制。通过不同的视图，同一份数据可以以表格、看板、画册、甘特图、日历等多种形式展示，满足不同角色和场景的查看需求。</p><div class="highlight">多视图展示：同一数据可用表格、看板、画册、甘特图、日历等多种形式呈现。</div><p>权限控制是企业应用的关键功能。AI表格支持按角色、按部门设置数据的查看、编辑权限。例如，销售人员只能看到自己负责的客户数据，经理可以看到整个团队的数据，而财务数据只对财务部门可见。</p><ul><li>表格视图：经典表格形式，适合数据录入和批量编辑</li><li>看板视图：按状态分列展示，适合项目管理和任务跟踪</li><li>甘特图：时间轴展示，适合项目进度管理</li><li>画册视图：卡片式展示，适合产品目录和资产管理</li></ul><p>权限设计建议：遵循最小权限原则，每个角色只授予其工作所需的最少数据访问权限。同时利用字段级权限隐藏敏感信息字段。</p>',quiz:[{q:'AI表格多视图功能的核心价值是什么？',o:['每种视图存储不同的数据副本方便备份','同一份数据可以用不同形式呈现满足不同角色和场景的查看需求','多视图会导致数据不一致需要手动同步','创建新视图需要重新录入一遍数据'],a:0},{q:'关于AI表格权限控制的最佳实践，以下哪项最符合安全原则？',o:['为方便协作应给所有人完全读写权限','遵循最小权限原则，每个角色只授予工作所需的最少数据访问权限','权限设置太复杂会影响效率建议统一开放','只有管理员账号需要设置权限普通用户不需要'],a:1},{q:'当你需要管理一个项目的任务进度时，以下哪种AI表格视图最合适？',o:['画册视图，以卡片形式展示每个任务的详细信息','看板视图，按任务状态分列展示便于拖拽更新进度','表格视图，因为它是默认视图所以最通用','甘特图视图只适合查看日历不适合任务管理'],a:1}]},
+{id:'c4_3',title:'字段与公式',tools:['AI表格'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>AI表格提供丰富的字段类型和强大的公式系统。正确选择字段类型是搭建高质量应用的基础——文本字段存储文字信息、数字字段用于计算、日期字段支持时间计算、选项字段确保数据标准化。</p><div class="highlight">字段类型决定了数据的存储方式和可用操作，选对字段类型是搭建应用的第一步。</div><p>公式字段类似于Excel公式，但更加强大。它支持数学运算、文本处理、日期计算、逻辑判断等。常用公式包括IF条件判断、CONCATENATE文本拼接、DATEDIF日期差计算等。公式字段的值会自动计算，不需要手动更新。</p><ul><li>基础字段：文本、数字、选项、日期、附件、复选框</li><li>高级字段：关联字段、查找引用、汇总、公式、AI字段</li><li>常用公式：IF、SUM、AVERAGE、CONCATENATE、DATEDIF</li><li>自动计算：公式字段根据源数据自动更新结果</li></ul><p>实用技巧：用选项字段替代手动输入分类信息，用公式字段自动计算派生数据，用日期字段配合公式计算工作日天数等。</p>',quiz:[{q:'在AI表格中选择正确的字段类型为什么如此重要？',o:['字段类型只影响显示样式不影响数据处理','字段类型决定了数据的存储方式和可用操作，选错会导致数据无法正确计算和筛选','所有数据都应该使用文本字段存储因为文本最灵活','字段类型设定后无法更改所以不需要特别关注'],a:1},{q:'关于公式字段的特性，以下哪项描述最准确？',o:['公式字段需要手动点击刷新按钮才能更新计算结果','公式字段的值会根据源数据变化自动计算更新无需手动操作','公式字段只支持加减乘除四则运算不支持条件判断','公式字段与Excel公式完全相同没有任何扩展'],a:1}]},
+{id:'c4_4',title:'AI字段',tools:['AI字段模板'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>AI字段是AI表格中最具创新性的功能——它让每个单元格都拥有AI处理能力。通过配置AI字段的提示词模板，系统会自动调用大模型对每一行数据进行智能处理，如自动分类、情感分析、内容提取、摘要生成等。</p><div class="highlight">核心能力：每个单元格都有AI大脑，自动执行分类、提取、分析、生成等任务。</div><p>AI字段模板提供了丰富的预设模板，覆盖常见的业务场景。用户也可以自定义提示词来创建满足特定需求的AI字段。例如，在客户反馈表中添加AI字段，自动分析每条反馈的情感倾向和关键诉求。</p><ul><li>自动分类：根据内容自动归类，如将客户咨询分为"投诉""建议""咨询"</li><li>内容提取：从长文本中提取关键信息，如姓名、电话、地址</li><li>情感分析：判断文本的情感倾向（正面/中性/负面）</li><li>摘要生成：将长段落自动缩写为简洁摘要</li></ul><p>使用技巧：AI字段的提示词编写与Prompt工程一样重要。清晰定义输入格式、处理规则和输出要求，能显著提升AI字段的处理质量。</p>',quiz:[{q:'AI字段与传统公式字段的本质区别是什么？',o:['AI字段运算速度更快但功能与公式字段相同','AI字段能理解语义执行分类、情感分析和摘要生成等智能任务，而非简单的数学计算','AI字段只能处理数字数据而公式字段可以处理文本','AI字段不需要任何配置就能自动工作'],a:1},{q:'当你为客户反馈表添加AI字段来自动分析反馈情感时，提升处理质量的关键是什么？',o:['使用默认配置即可AI会自动理解所有场景','编写清晰的提示词明确定义输入格式、处理规则和输出要求','增加更多普通文本字段来辅助AI字段的判断','将所有反馈合并到一个单元格中让AI一次性处理'],a:1}]},
+{id:'c4_5',title:'自动关联表数据',tools:['AI表格'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>在传统Excel中，跨表引用数据需要使用复杂的VLOOKUP公式。AI表格通过"关联字段"功能，让跨表数据引用变得简单直观——只需设置两张表之间的关联关系，数据就会自动同步，无需任何公式。</p><div class="highlight">告别VLOOKUP：使用关联字段自动建立表间数据连接，数据实时同步。</div><p>关联字段的工作原理类似于数据库中的外键关系。例如，"订单表"通过客户ID关联"客户表"，就可以在订单中直接查看客户的名称、联系方式等信息，且客户信息更新后订单表中的数据会自动同步。</p><ul><li>关联字段：建立两张表之间的数据连接</li><li>查找引用：通过关联关系引用另一张表的字段值</li><li>汇总字段：自动计算关联记录的统计值（求和、计数、平均等）</li><li>双向关联：两张表互相引用，数据保持一致</li></ul><p>应用场景：订单管理（订单表关联客户表和产品表）、项目管理（任务表关联人员表）、库存管理（出入库表关联产品表）。关联功能是构建复杂业务系统的基础。</p>',quiz:[{q:'AI表格中关联字段相比传统Excel的VLOOKUP公式有什么优势？',o:['关联字段和VLOOKUP功能完全相同只是操作方式不同','关联字段设置后数据自动同步无需编写复杂公式且源表更新后关联表自动更新','关联字段只能在同一张表内使用不支持跨表引用','关联字段每次查看时需要手动刷新才能获取最新数据'],a:1},{q:'在设计订单管理系统时，订单表需要引用客户表和产品表的信息，最合理的做法是？',o:['将客户和产品信息直接复制到订单表的对应行中','通过关联字段建立订单表与客户表和产品表之间的数据连接','为每个订单手动输入客户和产品的完整信息','创建一张包含所有信息的超大表格避免跨表引用'],a:1}]},
+{id:'c4_6',title:'自然语言开发',tools:['表哥'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>"表哥"是AI表格的智能助手，支持用自然语言完成表格操作和应用开发。你只需要用日常用语描述想要的操作，如"帮我筛选出本月未完成的任务"或"创建一个客户满意度统计图表"，表哥就能自动执行。</p><div class="highlight">核心能力：用说话代替操作，自然语言完成数据查询、分析和应用搭建。</div><p>表哥的能力覆盖从简单查询到复杂应用搭建的各种场景：数据筛选排序、图表生成、公式创建、字段添加、视图配置等。对于不熟悉技术操作的业务人员来说，表哥大大降低了使用门槛。</p><ul><li>数据查询："找出上个月销售额超过10万的客户"</li><li>图表生成："按月份生成销售趋势折线图"</li><li>公式创建："在C列添加公式计算利润率"</li><li>应用搭建："帮我创建一个请假审批应用"</li></ul><p>使用技巧：描述需求时要具体明确，包含时间范围、筛选条件、期望的输出格式等信息。如果第一次描述不够准确，可以通过追加说明来调整。</p>',quiz:[{q:'表哥（自然语言开发）的核心能力体现在哪个方面？',o:['只能执行简单的数据排序和筛选操作','支持用自然语言完成从数据查询到图表生成甚至应用搭建的多层级操作','需要用户学习特定的命令语法才能使用','只能处理已有数据不能创建新的字段或视图'],a:1},{q:'使用表哥进行自然语言操作时，以下哪种描述方式最可能获得准确结果？',o:['查一下数据','找出上个月销售额超过10万的客户并按金额降序排列','帮我处理一下表格','看看最近的情况'],a:1}]},
+{id:'c4_7',title:'万能贴视觉录入',tools:['万能贴'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>万能贴是钉钉AI表格的视觉录入功能，通过手机拍照即可自动识别并录入数据。它利用AI OCR和视觉理解技术，能识别名片、发票、合同、表单等各种纸质文档，并自动提取关键信息填入对应字段。</p><div class="highlight">核心功能：拍照→AI识别→自动提取关键信息→智能填入表格字段。</div><p>万能贴特别适合需要从纸质资料中采集数据的场景。例如展会上收集名片、报销时录入发票、仓库盘点时扫描标签等。相比手动输入，万能贴的录入速度提升5-10倍，且准确率高于人工。</p><ul><li>名片识别：自动提取姓名、公司、职位、电话、邮箱</li><li>发票识别：提取发票号、金额、日期、开票方等信息</li><li>表单识别：识别印刷表单中的填写内容</li><li>自定义模板：可训练识别特定格式的文档</li></ul><p>使用建议：拍照时确保光线充足、画面清晰、文档平整。对于识别结果，建议快速浏览确认关键字段是否正确。</p>',quiz:[{q:'万能贴的AI能力链路是什么？',o:['手动输入数据后AI辅助校验格式','拍照后AI通过OCR和视觉理解自动提取关键信息并智能填入对应字段','扫描文档后生成PDF存档不涉及数据提取','拍照后只保存图片需要人工从图片中手动录入数据'],a:1},{q:'在展会上使用万能贴批量采集名片信息时，以下哪个操作建议最合理？',o:['每张名片拍照后都需要手动核对所有字段确保完全正确','拍照时确保光线充足画面清晰，识别后快速浏览确认关键字段是否正确','万能贴的识别准确率为100%无需任何人工确认','每张名片需要拍摄多角度多张照片才能提高识别率'],a:1}]},
+{id:'c4_8',title:'语音AI录入',tools:['随口说'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>"随口说"是AI表格的语音数据录入功能，用户只需对着手机说话，AI就能自动理解语义并将信息填入正确的表格字段。这项功能特别适合外勤人员、仓库管理员等双手不方便操作屏幕的工作场景。</p><div class="highlight">对着手机说话就能录入数据：AI自动理解语义，智能填入对应字段。</div><p>随口说的AI不仅能识别语音转文字，还能理解语义结构。例如说"今天拜访了张总，讨论了新产品合作意向，金额大约50万"，AI会自动将"张总"填入客户字段、"新产品合作"填入事项字段、"50万"填入金额字段、"今天"填入日期字段。</p><ul><li>语义理解：不是简单的语音转文字，而是理解内容并分配到正确字段</li><li>多字段填充：一句话可以同时填充多个字段</li><li>连续录入：支持连续说多条记录，自动分条入库</li><li>方言适配：支持普通话和常见方言</li></ul><p>最适合的场景包括：外勤拜访记录、仓库出入库登记、巡检记录、现场施工日志等。在这些场景中，随口说能将录入效率提升3-5倍。</p>',quiz:[{q:'随口说与普通语音转文字工具的核心区别是什么？',o:['随口说只是将语音转为文字存入单个文本字段','随口说不仅识别语音还能理解语义并自动将信息分配到正确的表格字段','随口说需要用户按照固定格式说出每个字段的值','随口说只支持普通话不支持任何方言'],a:1},{q:'当外勤人员说"今天拜访了张总讨论了新产品合作意向金额大约50万"时，随口说AI会如何处理？',o:['将整段话存入一个备注字段由用户事后手动拆分','自动将张总填入客户字段、新产品合作填入事项字段、50万填入金额字段、今天填入日期字段','提示用户格式不正确需要逐字段分别录入','只识别数字50万其他文字内容被忽略'],a:1}]},
+{id:'c4_9',title:'周报自动汇总',tools:['AI表格'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>传统周报流程低效且痛苦：员工手写周报发邮件、管理者逐一阅读汇总。钉钉AI表格可以构建自动化的周报系统，员工通过表单快速提交，系统自动汇总，AI分析生成团队周报，彻底改变周报的工作方式。</p><div class="highlight">核心流程：表单提交→自动汇总→AI分析→团队报告自动生成。</div><p>具体搭建步骤：首先创建周报表格和提交表单，设置每周定时提醒员工填写；然后配置自动化规则将数据汇总到管理者视图；最后利用AI字段自动生成每位员工的工作要点提炼和团队整体进展分析。</p><ul><li>表单采集：统一格式收集周报，保证信息完整性</li><li>自动汇总：按团队、部门自动聚合周报数据</li><li>AI分析：自动提炼重点工作、识别风险项、跟踪任务进度</li><li>报告生成：一键生成图文并茂的团队周报</li></ul><p>管理者的收益尤其明显：从原来花1-2小时阅读整理周报，变成5分钟浏览AI自动生成的团队周报摘要。同时还能通过数据分析发现团队工作中的趋势和问题。</p>',quiz:[{q:'AI自动化周报系统相比传统周报流程的本质改进在哪里？',o:['只是将纸质周报改为电子版格式更美观','通过表单采集、自动汇总和AI分析实现从提交到报告生成的全流程自动化','管理者不再需要了解团队工作情况','员工不再需要总结和回顾自己的工作内容'],a:1},{q:'对管理者而言，AI自动化周报系统的最大价值体现在什么方面？',o:['可以用AI自动评分给员工绩效打分','从花费大量时间逐一阅读周报变为快速浏览AI生成的团队进展摘要和趋势分析','完全不需要关注团队的周报内容','AI会自动替管理者做出工作调整决策'],a:1}]},
+{id:'c4_10',title:'业务流程设计',tools:['AI表格'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>在使用AI表格搭建业务应用之前，最重要的一步是先梳理清楚业务流程。好的流程设计决定了应用的质量和使用体验。很多人直接上手建表导致反复返工，正确的做法是"先设计后搭建"。</p><div class="highlight">第一步永远是梳理流程设计架构，而不是直接建表。</div><p>业务流程设计包括三个关键步骤：首先，梳理现有业务流程，明确每个环节的输入输出和参与角色；其次，识别可以用AI优化的环节，如自动分类、智能提醒、数据分析；最后，设计表结构和表间关系，确定字段类型和权限方案。</p><ul><li>流程梳理：画出现有业务流程图，标注每个节点的角色和动作</li><li>AI优化点：找出重复性高、规律性强的环节，引入AI处理</li><li>数据模型设计：确定需要几张表、表间如何关联、字段类型</li><li>权限规划：明确每个角色的数据访问范围</li></ul><p>常见错误：一张表存所有数据（应拆分为多张关联表）、没有统一的数据标准（应用选项字段标准化）、忽略权限设计（应提前规划）。避免这些错误，能大幅提升应用质量。</p>',quiz:[{q:'搭建AI表格业务应用时，为什么"先设计后搭建"比"边做边改"更高效？',o:['先设计会增加项目周期降低交付速度','提前梳理流程和数据模型能避免反复返工确保应用质量','业务流程设计只有专业架构师才能完成普通用户不需要','先设计意味着需要购买额外的设计工具增加成本'],a:1},{q:'以下哪种数据模型设计是常见的错误做法？',o:['将订单数据和客户数据分别存储在不同的表中通过关联字段连接','根据业务实体将数据拆分为多张关联表并使用选项字段标准化分类','将所有业务数据放在一张表中不做任何拆分和关联设计','提前规划不同角色的数据访问权限并使用字段级权限控制'],a:2}]}
+]},
+{id:'m5',level:'初级',name:'悟空装机部署',color:'#fdcb6e',courses:[
+{id:'c5_1',title:'悟空是什么（上）',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>悟空是钉钉推出的智能终端AI助手，将大模型能力从云端延伸到物理终端设备。它可以部署在智能屏幕、机器人等硬件上，为企业提供面对面的AI交互体验，适用于前台接待、展厅讲解、门店导购等场景。</p><div class="highlight">悟空的定位：智能终端AI助手，让AI从屏幕走进物理空间。</div><p>与纯软件的AI助理不同，悟空结合了硬件感知能力（摄像头、麦克风、屏幕）和大模型理解能力，能实现更自然的人机交互。用户可以直接对着悟空说话、提问或请求服务，悟空通过语音和屏幕进行反馈。</p><ul><li>语音交互：支持自然语言对话，像和真人交流一样</li><li>视觉感知：通过摄像头识别人脸、物品和环境</li><li>屏幕展示：在屏幕上展示信息、图片和视频</li><li>系统集成：与钉钉生态深度打通，可访问企业数据</li></ul><p>悟空的出现标志着AI应用从"线上工具"向"线下服务"的延伸，为企业的客户接待、员工服务和业务运营开辟了新的可能性。</p>',quiz:[{q:'悟空作为智能终端AI助手，其核心定位与纯软件AI助理有什么不同？',o:['悟空只是一个带屏幕的语音播放器功能比软件AI更简单','悟空结合了硬件感知能力和大模型理解能力，能在物理空间中实现更自然的人机交互','悟空不需要网络连接所有AI能力都在本地运行','悟空只能在企业办公室内使用不支持其他场景'],a:1},{q:'悟空将AI从"线上工具"延伸到"线下服务"意味着什么？',o:['企业不再需要任何线上AI工具','AI能力可以部署到物理终端设备上服务于前台接待、展厅讲解等线下场景','悟空只能在线下使用无法与线上系统连接','线下服务不需要云端AI引擎的支持'],a:1}]},
+{id:'c5_2',title:'悟空是什么（下）',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>悟空的技术架构分为三层：硬件层（终端设备和传感器）、AI引擎层（大模型、语音识别、图像识别）和应用层（各种业务技能和交互界面）。这种分层架构使得悟空具备高度的可扩展性和定制能力。</p><div class="highlight">三层架构：硬件感知层→AI引擎层→业务应用层，支持灵活定制和扩展。</div><p>悟空的AI引擎整合了多种AI能力：通义大模型提供语言理解和生成、语音识别引擎处理语音输入、TTS引擎将文本转为自然语音输出、视觉模型处理图像识别任务。这些能力的融合使悟空能处理复杂的多模态交互。</p><ul><li>大模型引擎：理解用户意图，生成智能回答</li><li>语音引擎：ASR语音识别+TTS语音合成</li><li>视觉引擎：人脸识别、物体识别、OCR文字识别</li><li>知识库对接：可连接企业知识库提供专业回答</li></ul><p>悟空支持通过钉钉后台进行远程管理和配置更新，管理员可以随时调整悟空的技能、话术和知识库内容，无需现场操作设备。</p>',quiz:[{q:'悟空的三层技术架构中，AI引擎层包含哪些核心能力？',o:['只包含语音识别和文字转语音两种能力','整合了通义大模型、语音识别、TTS语音合成和视觉识别等多种AI能力','只有通义大模型一个组件其他都在硬件层处理','AI引擎层负责硬件设备管理和传感器数据采集'],a:1},{q:'关于悟空的远程管理能力，以下哪项描述最准确？',o:['悟空的所有配置修改都必须在设备现场完成','管理员可以通过钉钉后台远程调整悟空的技能、话术和知识库内容','远程管理只能查看设备状态无法修改任何配置','每次更新知识库都需要重新部署硬件设备'],a:1}]},
+{id:'c5_3',title:'读懂AI',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>要有效使用悟空，首先需要"读懂AI"——理解AI能做什么、不能做什么以及在不同场景下如何发挥最大价值。AI不是万能的，它擅长处理模式化、数据密集型的任务，但在需要深度专业判断和情感交流的场景中仍需人类补充。</p><div class="highlight">关键：了解AI的能力边界，找到AI与业务场景的最佳匹配点。</div><p>在悟空的应用场景中，AI最擅长的是标准化问答、信息检索、流程引导和数据记录。例如，悟空可以24小时回答访客的常见问题、引导客户完成自助服务流程、记录来访信息等。但对于复杂的商务谈判或情感安抚，仍需人工接管。</p><ul><li>AI擅长：标准化问答、信息检索、数据记录、流程引导</li><li>AI不擅长：复杂判断、情感交流、创意决策、非标准场景</li><li>最佳策略：AI处理80%的常规任务，人工处理20%的复杂任务</li></ul><p>理解这些边界后，在部署悟空时就能合理设定期望，将其放在最能发挥价值的位置，同时设计好人工接管的后备方案。</p>',quiz:[{q:'在部署悟空时理解AI能力边界的核心意义是什么？',o:['了解AI技术的学术发展历史以便向客户展示','合理设定使用预期，将悟空部署在最能发挥价值的场景并设计好人工接管方案','掌握AI模型的训练细节以便自行优化模型参数','确保悟空能处理所有类型的用户需求不需要人工介入'],a:1},{q:'关于悟空AI的能力边界，以下哪项判断最准确？',o:['悟空适合处理所有类型的客户咨询包括复杂商务谈判','悟空擅长标准化问答和流程引导，但复杂判断和情感交流仍需人工补充','悟空只能回答预设的固定问题列表不具备理解能力','AI技术已经足够成熟不存在明显的能力边界'],a:1}]},
+{id:'c5_4',title:'五大场景',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>悟空在五大核心场景中发挥重要价值：教育、办公、零售、服务和制造。每个场景都有其独特的需求和应用方式，需要针对性地配置悟空的技能和知识库。</p><div class="highlight">五大典型场景：教育（智能导学）、办公（前台接待）、零售（导购推荐）、服务（客服接待）、制造（巡检管理）。</div><p>在教育场景中，悟空可以作为智能导学助手，帮助学生解答问题、引导学习路径；在办公场景中，可以担任智能前台，接待访客、指引方向；在零售场景中，可以作为导购助手，介绍产品、推荐搭配。</p><ul><li>教育：课程讲解、学习辅导、校园导览</li><li>办公：前台接待、会议室引导、员工服务</li><li>零售：产品介绍、优惠推荐、自助结账引导</li><li>服务：客户咨询、预约登记、排队管理</li><li>制造：安全提醒、设备状态查询、巡检记录</li></ul><p>选择适合的场景并深入优化，比同时覆盖所有场景更容易取得成效。建议企业从一个核心场景开始试点，积累经验后再逐步扩展。</p>',quiz:[{q:'企业在选择悟空的部署场景时，以下哪种策略最合理？',o:['同时在所有场景中部署悟空以最大化投资回报','从一个核心场景开始试点积累经验后再逐步扩展到其他场景','只选择技术最复杂的场景部署以体现AI的先进性','等所有场景的需求都明确后再一次性全部部署'],a:1},{q:'悟空在办公前台接待场景中的核心价值是什么？',o:['完全替代前台人员处理所有接待事务','提供24小时标准化的访客接待、指引和信息查询服务','仅用于展示企业科技形象不承担实际接待功能','只在前台人员休息时临时顶替接待工作'],a:1}]},
+{id:'c5_5',title:'Skills技能训练',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>Skills是悟空的技能模块系统，类似于手机上的APP。每个Skill赋予悟空一种特定的业务能力，如产品介绍、预约登记、问卷调查等。通过配置和训练Skills，企业可以让悟空精准地服务于特定的业务场景。</p><div class="highlight">Skills：赋予悟空业务能力的可插拔模块，可灵活配置和训练。</div><p>Skills的训练包括配置知识库、设定对话流程、编写话术模板和设置触发条件。例如，一个"产品介绍"Skill需要导入产品信息库、设计用户提问到产品推荐的对话流程、准备不同场景下的话术模板。</p><ul><li>知识库配置：导入业务相关的问答对和文档资料</li><li>对话流程：设计用户交互的逻辑流程和分支</li><li>话术模板：编写标准化的回答模板和引导话术</li><li>触发条件：设定何时激活特定Skill</li></ul><p>训练技巧：先用真实的用户问题来测试Skill的回答质量，根据测试结果不断优化知识库和话术。一个优质的Skill通常需要经过多轮的测试和优化才能达到生产级质量。</p>',quiz:[{q:'Skills在悟空系统中的角色类似于什么？',o:['操作系统的底层驱动程序负责硬件管理','类似手机上的APP，是赋予悟空特定业务能力的可插拔模块','一次性的配置脚本运行后即被删除','只是悟空界面上的装饰性图标没有实际功能'],a:1},{q:'训练一个高质量Skill的关键方法论是什么？',o:['一次性完成所有配置后直接上线使用','通过配置、测试、优化的多轮迭代不断提升回答质量','只需要导入知识库文档不需要设计对话流程','Skill配置越简单效果越好不需要编写详细的话术模板'],a:1}]},
+{id:'c5_6',title:'悟空协作力',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>悟空的价值不仅在于独立工作，更在于与企业现有系统的协同能力。它可以与钉钉IM、日程、审批、AI表格等工具无缝衔接，将线下交互数据回流到线上系统，形成完整的业务闭环。</p><div class="highlight">协作力的核心：线下交互与线上系统无缝衔接，数据自动回流形成业务闭环。</div><p>例如，访客通过悟空完成来访登记后，信息自动同步到钉钉IM通知接待人员、自动录入访客管理表格、在日程中创建会见记录。这种端到端的自动化消除了信息断层和手动转录的工作量。</p><ul><li>IM协同：悟空可发送消息通知相关人员</li><li>表格协同：交互数据自动录入AI表格</li><li>审批协同：触发和推进审批流程</li><li>知识库协同：从企业知识库获取专业回答</li></ul><p>部署悟空时，建议先梳理清楚需要与哪些系统对接，设计好数据流转路径。系统之间的协同越紧密，悟空创造的价值就越大。</p>',quiz:[{q:'悟空协作力的核心体现在什么方面？',o:['悟空可以独立完成所有任务不需要与其他系统对接','悟空能将线下交互数据自动回流到钉钉线上系统形成完整的业务闭环','悟空的协作只是指多台设备之间的联动','悟空与钉钉系统的对接需要手动导出导入数据'],a:1},{q:'当访客通过悟空完成来访登记后，一个完整的协作链路应该是什么样的？',o:['登记信息只保存在悟空本地需要前台人员手动转录到系统','信息自动同步到IM通知接待人、录入访客管理表格、在日程中创建记录','悟空只负责语音对话不涉及任何数据记录和系统对接','访客需要再到前台用电脑重新登记一次作为正式记录'],a:1}]},
+{id:'c5_7',title:'部署装机（一）',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>悟空部署的第一步是环境准备。包括硬件设备的选型和采购、网络环境的评估、电源和安装位置的规划。合理的环境准备是成功部署的基础，忽略这一步往往导致后续出现各种问题。</p><div class="highlight">部署第一步：环境准备——硬件选型、网络评估、安装位置规划。</div><p>硬件选型需要根据使用场景来决定：前台接待场景选择桌面型设备、展厅场景选择落地式大屏、门店场景可能需要壁挂式。网络要求方面，悟空需要稳定的网络连接来访问云端AI服务。</p><ul><li>硬件选型：根据场景选择合适的终端型号和规格</li><li>网络要求：确保稳定的WiFi或有线网络，建议带宽不低于10Mbps</li><li>电源规划：预留电源接口，考虑UPS备用电源</li><li>位置选择：考虑人流动线、光线条件、噪音环境</li></ul><p>准备清单：确认硬件型号和数量、网络测速和信号覆盖、电源预留和走线方案、安装位置平面图、管理员账号准备。</p>',quiz:[{q:'悟空部署环境准备阶段，硬件选型的主要依据是什么？',o:['选择价格最高的设备以确保性能最优','根据实际使用场景来决定设备型号，如前台选桌面型、展厅选落地式大屏','所有场景统一使用同一型号的标准设备','硬件选型由悟空系统自动推荐用户无需考虑'],a:1},{q:'悟空部署的环境准备清单中，以下哪项最容易被忽略但又至关重要？',o:['设备的外观颜色是否与装修风格匹配','网络信号覆盖和带宽是否满足稳定通信要求','设备包装箱的存放位置','管理后台界面的语言设置'],a:1}]},
+{id:'c5_8',title:'部署装机（二）',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>部署装机第二步是网络配置和云端连接。悟空需要与钉钉云端服务建立稳定的通信连接，才能访问AI引擎、知识库和企业数据。正确的网络配置是保障悟空正常运行的关键。</p><div class="highlight">网络配置的核心目标：确保悟空与云端AI服务之间的稳定通信连接。</div><p>网络配置包括WiFi连接设置、DNS配置、防火墙规则配置（确保悟空能访问必要的云端服务地址）。对于企业内网环境，可能需要IT部门配合开通特定的网络策略。</p><ul><li>WiFi配置：连接企业WiFi，设置自动重连</li><li>DNS设置：使用推荐的DNS服务器地址</li><li>防火墙：确保开放悟空服务所需的端口和域名</li><li>网络测试：验证与云端服务的连通性和延迟</li></ul><p>常见问题排查：如果悟空连接不稳定，首先检查WiFi信号强度，其次检查防火墙是否阻拦了必要的服务地址，最后联系网络管理员确认企业网络策略。</p>',quiz:[{q:'悟空网络配置的核心目标是什么？',o:['确保悟空能访问互联网浏览网页','确保悟空与云端AI服务之间建立稳定的通信连接','让悟空能连接蓝牙设备进行文件传输','配置悟空作为企业WiFi的热点供其他设备使用'],a:1},{q:'当悟空出现连接不稳定的问题时，以下排查步骤中应该优先检查什么？',o:['重新安装悟空的操作系统','检查WiFi信号强度以及企业防火墙是否阻拦了必要的服务地址','更换为全新的硬件设备','联系大模型提供商升级AI引擎版本'],a:1}]},
+{id:'c5_9',title:'部署装机（三）',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>部署装机第三步是功能调试和验证。在完成硬件安装和网络配置后，需要逐一测试悟空的各项功能，确保语音识别、屏幕显示、技能响应等都正常工作。充分的测试是上线前的必备环节。</p><div class="highlight">部署后必须进行功能验证和调试，确保每项能力都正常工作。</div><p>调试包括以下维度：语音交互测试（不同距离、不同环境噪音下的识别效果）、技能功能测试（每个配置的Skill是否正常工作）、显示效果测试（屏幕亮度、内容排版）、网络稳定性测试（长时间运行的稳定性）。</p><ul><li>语音测试：在实际使用距离（1-3米）测试识别准确率</li><li>技能测试：逐一测试所有配置的Skills，覆盖主要场景</li><li>显示测试：检查屏幕内容在不同光线下的可读性</li><li>压力测试：模拟高频使用场景，测试系统稳定性</li></ul><p>建议制作一份调试检查清单，逐项打钩确认。发现问题及时记录和修复，确保在正式上线前解决所有已知问题。</p>',quiz:[{q:'悟空部署后进行功能调试时，语音交互测试为什么要在实际使用条件下进行？',o:['安静环境下的测试结果已经足够代表所有场景','实际使用距离和环境噪音会影响语音识别准确率，需要模拟真实条件验证','语音测试只需要验证麦克风硬件是否正常工作','远距离测试只在会议室场景中才需要进行'],a:1},{q:'制作调试检查清单的核心价值是什么？',o:['只是为了满足项目管理的文档要求','确保每项功能都经过系统性验证，发现问题及时修复避免上线后出现故障','调试检查清单由AI自动生成无需人工参与','检查清单只在第一次部署时需要后续设备无需再次验证'],a:1}]},
+{id:'c5_10',title:'部署装机（四）',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>部署装机第四步是扩展功能配置和上线运营准备。在基础功能验证通过后，可以进一步配置进阶功能，如多设备联动、数据分析面板、自动化运维等，并制定上线后的运营维护计划。</p><div class="highlight">目标：扩展进阶功能，制定运营维护计划，确保长期稳定运行。</div><p>扩展功能包括：多台悟空设备之间的联动管理、运行数据的监控和分析（如每日交互次数、热门问题统计）、远程OTA升级配置、异常告警通知等。这些功能帮助管理员高效地管理和优化悟空的运行。</p><ul><li>多设备管理：统一管理多台悟空设备的配置和状态</li><li>数据分析：查看交互统计、热门问题、用户满意度</li><li>远程更新：通过云端推送新的技能和知识更新</li><li>异常监控：设备离线或异常时自动告警通知管理员</li></ul><p>运营建议：上线初期安排专人关注悟空的运行状态和用户反馈，每周分析交互数据优化知识库和话术，每月评估ROI并调整策略。</p>',quiz:[{q:'悟空上线后的运营维护中，数据分析的核心作用是什么？',o:['只是生成好看的统计报表供领导查看','通过分析交互数据和热门问题来持续优化知识库和话术提升服务质量','数据分析只在部署第一周有价值之后无需持续关注','分析数据的目的是监控用户行为进行考核评分'],a:1},{q:'关于悟空的远程OTA升级功能，以下哪项理解最准确？',o:['OTA升级需要将设备拆卸回厂才能完成','可以通过云端远程推送新的技能配置和知识更新无需现场操作设备','OTA升级只能更新硬件固件不涉及AI能力和知识库','每次OTA升级都会清除设备上已有的所有配置和数据'],a:1}]},
+{id:'c5_11',title:'三大场景实战',tools:['悟空'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>通过教育、零售和服务三大场景的实战练习，将前面学到的悟空部署知识转化为实际操作能力。每个场景都包含完整的需求分析、技能配置、知识库搭建和测试验证流程。</p><div class="highlight">实战价值：从理论到实践，通过动手操作掌握悟空在不同场景下的配置技巧。</div><p>教育场景实战：配置校园导览Skill，导入学校介绍和常见问题；零售场景实战：配置产品推荐Skill，设计顾客咨询到产品推荐的对话流程；服务场景实战：配置客户接待Skill，实现来访登记和问题解答。</p><ul><li>教育场景：校园导览→课程咨询→活动查询→设施指引</li><li>零售场景：迎宾问候→需求了解→产品推荐→优惠介绍</li><li>服务场景：来访登记→身份验证→引导指路→问题解答</li></ul><p>每个实战项目建议按以下步骤执行：明确场景目标→梳理用户旅程→配置Skills→准备知识库→测试优化→上线运营。通过实战积累的经验，对后续的复杂项目部署非常有价值。</p>',quiz:[{q:'三大场景实战练习的核心价值是什么？',o:['熟记各场景的理论知识点以应对考试','通过动手操作将部署知识转化为实际技能，积累可复用的项目经验','只是跟着教程操作不需要理解背后的原理','实战练习的目的是测试设备性能而非学习配置技巧'],a:1},{q:'实战项目的推荐执行步骤中，"梳理用户旅程"这一步的意义是什么？',o:['用户旅程只是项目文档的一部分对实际配置没有指导意义','通过理解用户的完整交互路径来设计合理的对话流程和技能配置','用户旅程由AI自动生成无需人工梳理','只需要梳理管理员的操作旅程不需要考虑终端用户'],a:1}]}
+]},
+{id:'m6',level:'初级',name:'初级综合考核',color:'#a29bfe',courses:[
+{id:'c6_1',title:'初级综合考核',tools:['综合'],learnUrl:'dingtalk://dingtalkclient/action/open_platform_link?pcLink=dingtalk%3A%2F%2Fdingtalkclient%2Fpage%2Flink%3Furl%3Dhttps%253A%252F%252Fapp1730.eapps.dingtalkcloud.com%252FpcHome%252Fdist%252FLogin%253Fcompany_id%253Ddinga209aad1088133d724f2f5cc6abecb85%2526ai_cert_channel%253Daigd_gaokeyong_kaijiping%2526ddtab%253Dtrue&mobileLink=https%3A%2F%2Fapp1730.eapps.dingtalkcloud.com%2Fmobile%2Fdist%2FdingtalkCertificate%3Fcompany_id%3Ddinga209aad1088133d724f2f5cc6abecb85%26ai_cert_channel%3Daigd_gaokeyong_kaijiping',content:'<p>初级综合考核是对前五个模块所有知识的综合检验，涵盖AI认知基础、智能办公工具、专业写作流水线、AI表格应用搭建、悟空部署运维等全部内容。通过考核即可获得初级AI应用认证。</p><div class="highlight">通过本考核即获初级认证，证明你已具备AI基础认知和常用工具应用能力。</div><p>考核范围包括：AI基础概念和大模型原理、Prompt工程技巧、钉钉办公工具的使用方法、AI表格的搭建能力、悟空的部署知识以及AI安全意识。建议在参加考核前回顾各模块的重点内容。</p><ul><li>AI认知：大模型原理、MCP协议、人机协作范式</li><li>办公工具：消息助理、会议管理、知识库、AI助理</li><li>写作工具：AI搜问、创作、文档、脑图、白板、PPT</li><li>表格应用：字段、公式、AI字段、关联、自然语言开发</li><li>悟空部署：场景理解、Skills配置、装机调试</li></ul><p>考试采用选择题形式，共8道题，涵盖理论知识和实际应用场景。建议认真审题，运用所学知识分析每个选项。</p>',quiz:[{q:'关于大模型的"预测下一个token"训练目标，以下哪项理解最深入？',o:['这意味着大模型只能做文本补全无法执行其他类型的任务','通过在海量文本上反复进行这一任务模型逐渐习得了语言规律、知识和推理能力','预测token只是预训练阶段的目标，微调和对齐阶段的目标完全不同因此不重要','这一目标决定了大模型只能处理文本不能理解图像或语音'],a:1},{q:'当你设计一个Prompt时写了"你是一位资深HR顾问"，这属于Prompt四要素中的哪个要素，其作用是什么？',o:['属于任务要素，作用是告诉AI要完成什么工作','属于角色要素，作用是帮助AI调用人力资源领域的相关知识','属于格式要素，作用是设定AI输出的结构形式','属于约束要素，作用是限制AI的回答范围不超出HR领域'],a:1},{q:'在使用AI表格搭建客户管理系统时，你需要在订单表中显示客户的联系方式。以下哪种做法最合理？',o:['在订单表中手动输入每个客户的联系方式保证数据独立性','通过关联字段连接客户表，使用查找引用自动获取联系方式信息','使用公式字段编写VLOOKUP公式从客户表中提取数据','将客户信息和订单信息都放在同一张表中避免跨表引用'],a:1},{q:'某企业要将客户合同的关键条款输入AI进行分析，以下哪种做法最符合数据安全规范？',o:['使用公共AI快速分析后删除对话记录即可','先对合同进行脱敏处理再通过企业私有化部署的AI服务进行分析','合同属于公开商业文件可以直接输入任何AI平台','只要AI服务的隐私协议中声明了不存储数据就可以直接使用'],a:1},{q:'MCP协议在钉钉AI生态中扮演什么角色？为什么它很重要？',o:['MCP是钉钉的用户认证协议确保只有授权用户能使用AI功能','MCP是连接AI模型与外部工具的标准化协议，使AI能调用钉钉文档、表格等工具执行实际操作','MCP是钉钉AI的训练框架用于优化通义大模型的性能','MCP是钉钉的数据同步协议确保多设备之间的数据一致性'],a:1},{q:'AI听记生成的会议纪要显示某项决策已达成，但你记得会上该决策仍有争议。此时最合理的做法是？',o:['以AI纪要为准因为AI的记录比人的记忆更可靠','审核并修正AI纪要中的不准确之处，必要时回听录音确认','直接删除AI纪要改为完全手动编写纪要','忽略这个差异因为小问题不值得花时间确认'],a:1},{q:'你使用AI字段为客户反馈表自动添加情感分析，发现部分反馈的情感判断不够准确。最有效的改进措施是？',o:['放弃使用AI字段改为人工逐条判断情感倾向','优化AI字段的提示词，明确定义正面、负面和中性的判断标准并提供示例','增加更多普通字段让用户手动标注情感倾向作为参考','将所有反馈翻译成英文后再让AI进行情感分析'],a:1},{q:'企业计划部署悟空作为展厅导览助手，在环境准备阶段发现展厅WiFi信号不稳定。以下哪种解决方案最合理？',o:['放弃部署悟空改用传统的人工导览方式','先改善网络环境确保稳定连接，因为悟空依赖云端AI服务稳定的网络是正常运行的基础','使用悟空的离线模式运行所有AI能力都可以在本地处理','在WiFi不稳定的情况下直接部署，上线后再根据用户反馈调整'],a:1}]}
+]},
+{id:'m7',level:'中级',name:'AI智能体搭建',color:'#e84393',courses:[
+{id:'c7_1',title:'DEAP平台介绍',tools:['DEAP'],content:'<p>DEAP（DingTalk Enterprise AI Platform）是钉钉的企业级AI智能体开发平台。它提供了从智能体创建、知识库配置、工作流编排到发布运营的一站式开发环境，让企业无需专业开发团队就能构建自己的AI应用。</p><div class="highlight">DEAP定位：企业级AI智能体开发平台，零代码搭建专属AI应用。</div><p>DEAP平台的核心组件包括：智能体创建器（定义AI的角色和能力边界）、知识库管理（上传和管理业务文档）、工作流编辑器（设计自动化流程）、发布管理（控制智能体的上线和权限）。</p><ul><li>智能体创建：设定AI角色、能力范围和交互风格</li><li>知识库管理：上传文档、配置FAQ、管理知识更新</li><li>工作流编排：拖拽式设计业务自动化流程</li><li>发布运营：灰度发布、使用统计、持续优化</li></ul><p>DEAP适合的场景包括：企业内部客服、HR问答助手、IT运维助手、销售支持等。通过DEAP，企业可以将分散的知识和流程转化为24/7可用的AI服务。</p>',quiz:[{q:'DEAP平台的核心价值与传统软件开发相比有什么本质区别？',o:['DEAP只是提供了更好的代码编辑器开发方式与传统相同','DEAP让企业无需专业开发团队就能零代码搭建AI智能体应用','DEAP只能创建简单的聊天机器人无法构建复杂业务应用','DEAP需要企业自建AI模型才能使用'],a:1},{q:'DEAP平台的四个核心组件分别承担什么职责？',o:['创建器负责代码编写、知识库负责数据备份、工作流负责页面设计、发布负责代码审查','创建器定义AI角色和能力、知识库管理业务文档、工作流编排自动化流程、发布管理上线和权限','所有组件功能相同可以互相替代使用哪个都一样','创建器和工作流是核心组件知识库和发布管理是可选的辅助功能'],a:1},{q:'以下哪个场景最能体现DEAP平台将分散知识转化为AI服务的能力？',o:['使用DEAP搭建企业内部HR问答助手整合员工手册和制度规范','使用DEAP创建一个简单的定时消息推送机器人','使用DEAP生成企业宣传海报和视觉物料','使用DEAP管理企业的硬件设备台账'],a:0}]},
+{id:'c7_2',title:'工作流搭建',tools:['工作流'],content:'<p>工作流是DEAP平台中实现业务流程自动化的核心功能。通过可视化的拖拽编辑器，用户可以设计复杂的自动化流程，包括条件分支、循环、API调用、数据处理等步骤，无需编写代码即可实现自动化。</p><div class="highlight">核心价值：将重复的业务流程自动化，用机器执行代替人工操作。</div><p>工作流的设计遵循"触发器→处理节点→输出"的基本模式。触发器定义什么条件下启动流程（如收到消息、定时触发），处理节点执行具体的操作（如AI分析、数据查询、消息发送），输出定义最终的结果和通知。</p><ul><li>触发器：消息触发、定时触发、webhook触发、手动触发</li><li>处理节点：AI对话、知识库检索、API调用、数据转换</li><li>条件分支：根据判断条件走不同的处理路径</li><li>输出节点：发送消息、写入数据、调用外部系统</li></ul><p>搭建技巧：先在纸上画出流程图，明确每个步骤的输入输出，然后再到DEAP平台中用拖拽方式实现。复杂流程建议分步测试，确保每个节点都正常工作后再串联。</p>',quiz:[{q:'工作流的"触发器→处理节点→输出"模式中，触发器的作用是什么？',o:['触发器负责执行数据处理和转换操作','触发器定义在什么条件下启动流程，如收到消息或定时触发','触发器负责将最终结果发送给用户','触发器是工作流的可选组件不是必须的'],a:1},{q:'搭建复杂工作流时，以下哪种方法论最能减少调试成本？',o:['一次性完成所有节点的搭建然后整体测试','先在纸上画出流程图明确每步的输入输出，然后分步搭建并逐节点测试','不需要提前设计直接在平台上拖拽节点边做边调整','复杂流程应该拆分为多个完全独立的简单工作流分别运行'],a:1}]},
+{id:'c7_3',title:'智能问答（一）',tools:['DEAP'],content:'<p>使用DEAP搭建AI智能问答系统是最常见的入门项目。智能问答系统能够根据企业知识库自动回答员工或客户的问题，大幅减少人工客服的工作量。本节讲解智能问答系统的基础搭建方法。</p><div class="highlight">核心技术：基于知识库的智能问答，让AI成为企业的24/7问答专家。</div><p>搭建步骤：首先创建智能体并设定其角色（如"人力资源问答助手"）；然后上传相关文档到知识库（如员工手册、制度规范）；接着配置问答规则和兜底策略（当AI无法回答时如何处理）；最后进行测试和发布。</p><ul><li>角色设定：明确AI的服务范围和回答风格</li><li>知识库搭建：上传文档、添加FAQ、设置知识权重</li><li>兜底策略：无法回答时转人工或推荐相关内容</li><li>测试验证：用真实问题测试回答质量和准确性</li></ul><p>知识库的质量直接决定了问答系统的效果。建议将常见问题整理为结构化的FAQ格式，并定期更新知识库内容以保持回答的准确性。</p>',quiz:[{q:'搭建基于知识库的智能问答系统时，知识库质量对系统效果的影响体现在哪里？',o:['知识库只影响搜索速度不影响回答质量','知识库的内容结构和准确性直接决定了AI回答的质量和命中率','知识库越大越好不需要考虑内容的结构化程度','知识库只需要上传原始文档AI会自动整理为最优格式'],a:1},{q:'当智能问答AI无法回答用户提出的问题时，设计兜底策略的核心原则是什么？',o:['直接告诉用户AI无法回答并结束对话','提供合理的兜底方案如转接人工客服或推荐可能相关的内容','随机从知识库中返回一条信息作为回答','让AI编造一个看似合理的答案避免用户体验不佳'],a:1}]},
+{id:'c7_4',title:'智能问答（二）',tools:['DEAP'],content:'<p>进阶智能问答系统需要支持多轮对话能力。与单轮问答不同，多轮对话能够在多次交互中保持上下文连贯，理解用户的追问和补充信息，提供更精准和深入的回答。</p><div class="highlight">多轮对话的关键：保持上下文连贯，理解用户的追问和补充信息。</div><p>实现高质量多轮对话需要设计好对话状态管理：系统需要记住之前说了什么、用户问过什么、当前在处理什么任务。同时需要设计合理的对话引导策略，在用户问题模糊时主动询问以获取更多信息。</p><ul><li>上下文管理：记录对话历史，理解代词和省略引用</li><li>槽位填充：通过多轮对话逐步获取完成任务所需的信息</li><li>对话引导：在信息不足时主动提问获取补充信息</li><li>对话结束：识别对话完成或需要转人工的时机</li></ul><p>测试多轮对话系统时，建议设计不同的对话路径场景，包括正常流程、异常中断、话题切换等情况，确保系统在各种情况下都能合理应对。</p>',quiz:[{q:'多轮对话系统中"上下文管理"的核心挑战是什么？',o:['记录对话的时间戳确保按时间顺序展示','让系统理解代词引用和省略信息保持对话连贯性','统计对话轮数确保不超过系统限制','管理对话界面的UI布局和字体大小'],a:1},{q:'当用户在多轮对话中提出了模糊的问题时，系统应该如何处理？',o:['基于之前的对话上下文推测用户意图直接给出答案','主动向用户提问获取补充信息以明确需求后再回答','告知用户问题格式不正确请重新描述','将对话立即转接给人工客服处理'],a:1}]},
+{id:'c7_5',title:'RAG与知识库',tools:['DEAP'],content:'<p>RAG（Retrieval-Augmented Generation，检索增强生成）是让AI智能体准确回答企业专属问题的核心技术。它的原理是：先从知识库中检索相关文档片段，然后将这些片段作为上下文提供给大模型生成回答，从而确保回答基于真实的企业知识。</p><div class="highlight">RAG = 先检索相关知识 + 再增强生成回答，确保AI回答有据可依。</div><p>RAG解决了大模型的两个核心问题：一是"幻觉"问题（AI编造不存在的信息），通过检索真实文档作为依据来减少幻觉；二是"知识过时"问题，通过实时检索最新的知识库内容来确保回答的时效性。</p><ul><li>文档切片：将大文档切分为适合检索的小片段</li><li>向量索引：将文档片段转化为向量，建立语义搜索索引</li><li>相似度检索：根据用户问题找到最相关的文档片段</li><li>增强生成：将检索结果与用户问题一起发送给大模型生成回答</li></ul><p>知识库优化建议：文档内容要清晰结构化、避免信息矛盾、定期更新过时内容、为重要知识点添加FAQ格式以提升检索命中率。</p>',quiz:[{q:'RAG技术解决了大模型的哪两个核心问题？',o:['推理速度慢和参数量过大的问题','幻觉问题（编造信息）和知识过时问题','不支持中文和多模态输入的问题','训练成本高和部署复杂的问题'],a:1},{q:'RAG流程中"文档切片"这一步骤的目的是什么？',o:['将文档压缩以节省存储空间','将大文档切分为适合语义检索的小片段以提高检索精度','文档切片是可选步骤，直接用整篇文档检索效果更好','切片的目的是将文档翻译成多种语言'],a:1},{q:'以下哪项不是提升RAG知识库检索质量的有效方法？',o:['确保文档内容清晰结构化减少信息矛盾','为重要知识点添加FAQ格式提升检索命中率','将所有文档合并为一个超大文件减少切片数量','定期更新过时的文档内容保持知识库时效性'],a:2}]},
+{id:'c7_6',title:'7×24AI工单助理',tools:['DEAP','AI表格'],content:'<p>通过DEAP和AI表格的组合，可以搭建一个7×24小时不间断运行的AI工单系统。用户提交问题后，AI自动分类派单、跟踪进度、催办提醒，大幅提升服务响应效率和客户满意度。</p><div class="highlight">7×24全天候服务：AI自动受理→智能分类→派单→跟踪→催办→回访。</div><p>系统架构：DEAP智能体负责与用户对话、理解问题和自动分类；AI表格负责存储工单数据、管理工单状态和生成统计报表。两者通过工作流串联，实现端到端的自动化工单管理。</p><ul><li>自动受理：AI理解用户问题描述，自动创建工单</li><li>智能分类：根据问题内容自动分配类别和优先级</li><li>自动派单：根据分类规则和人员配置自动派发给对应处理人</li><li>进度跟踪：自动跟踪工单处理进度，超时自动催办</li></ul><p>这套系统对IT运维、客户服务、物业管理等场景特别有价值。实际案例中，某企业部署后工单处理时效提升60%，客户满意度提升35%。</p>',quiz:[{q:'7x24AI工单系统中，DEAP智能体和AI表格分别承担什么职责？',o:['两者功能完全相同可以互相替代','DEAP负责与用户对话理解问题和自动分类，AI表格负责存储工单数据和状态管理','只需要DEAP就能完成所有功能AI表格是可选的','DEAP负责数据存储AI表格负责用户对话'],a:1},{q:'AI工单系统中"智能分类"环节的核心价值是什么？',o:['减少工单数量让用户自行解决问题','根据问题内容自动分配类别和优先级确保工单被派发给对应的处理人','统计各类工单的数量用于生成月度报表','将所有工单统一分配给同一个处理人简化管理'],a:1}]},
+{id:'c7_7',title:'自然语言可视化',tools:['DEAP','MCP'],content:'<p>自然语言可视化是通过MCP协议将DEAP智能体与数据可视化工具连接，使用户能用自然语言查询数据库并自动生成图表。例如"帮我看一下本季度各部门的销售额对比"，系统会自动查询数据并生成柱状图。</p><div class="highlight">用自然语言提问，AI自动查询数据并生成可视化图表，无需SQL和报表工具。</div><p>实现原理：用户用自然语言描述需求→DEAP智能体理解意图→通过MCP调用数据查询工具→获取数据→自动选择合适的图表类型→生成可视化结果。整个过程用户完全不需要接触SQL或报表工具。</p><ul><li>自然语言理解：AI解析用户的数据查询意图</li><li>MCP数据连接：通过MCP协议连接企业数据库或API</li><li>智能图表选择：根据数据特征自动选择柱状图、折线图、饼图等</li><li>交互式探索：支持追问以深入分析或切换维度</li></ul><p>这项能力让非技术人员也能轻松获取数据洞察，真正实现"人人都是数据分析师"的愿景。对于需要频繁查看业务数据的管理者来说尤其有价值。</p>',quiz:[{q:'自然语言可视化的技术实现链路中，MCP协议扮演什么角色？',o:['MCP负责生成图表的视觉样式和配色方案','MCP作为标准化协议连接DEAP智能体与企业数据库，使AI能查询实际业务数据','MCP负责将自然语言翻译成SQL语句','MCP是一种图表渲染引擎负责生成柱状图和饼图'],a:1},{q:'自然语言可视化让"人人都是数据分析师"成为可能，其核心原因是什么？',o:['用户需要先学习基础的SQL语法才能使用','用户完全不需要接触SQL或报表工具，用日常语言描述需求即可获得数据可视化结果','系统会自动将分析结果发送给专业数据分析师进行审核','用户只能查看预设的固定报表无法进行自定义分析'],a:1}]},
+{id:'c7_8',title:'面试小助手（一）',tools:['DEAP'],content:'<p>利用DEAP平台搭建AI面试小助手，能自动解析简历、生成针对性的面试问题、辅助面试官进行候选人评估。这不是替代面试官，而是帮助面试官提升效率和评估的全面性。</p><div class="highlight">AI面试助手的定位：辅助面试官提升效率和评估质量，而非替代面试官。</div><p>第一阶段功能搭建：简历解析（自动提取教育背景、工作经历、技能标签等结构化信息）和面试问题生成（根据岗位要求和候选人简历自动生成有针对性的面试问题）。</p><ul><li>简历解析：自动提取关键信息生成候选人画像</li><li>岗位匹配：将候选人经历与岗位要求自动比对</li><li>问题生成：根据候选人背景和岗位需求生成面试问题</li><li>面试准备：为面试官提供候选人背景摘要和建议关注点</li></ul><p>这套系统可以帮助HR从大量简历中快速筛选出匹配的候选人，并为面试官提供充分的准备材料，使面试过程更加高效和专业。</p>',quiz:[{q:'AI面试小助手的定位是"辅助"而非"替代"面试官，这一原则的深层原因是什么？',o:['AI技术还不够成熟等技术进步后就可以完全替代','招聘决策涉及价值判断和文化匹配等AI短期内无法全面评估的维度','AI面试助手的功能仅限于简历解析没有评估能力','让AI做录用决策可以减少人为偏见所以应该逐步替代面试官'],a:1},{q:'面试小助手根据候选人简历自动生成面试问题的核心价值是什么？',o:['减少面试官的准备时间同时生成有针对性的问题提升面试质量','确保所有候选人回答完全相同的标准化问题','替代面试官提问让AI独立完成面试过程','只是将简历内容转化为问题格式没有针对性'],a:0}]},
+{id:'c7_9',title:'面试小助手（二）',tools:['DEAP'],content:'<p>面试小助手的进阶功能包括面试评估模型和候选人画像智能匹配。通过AI对面试记录的分析，生成多维度的候选人评估报告，并与岗位胜任力模型进行智能匹配，给出推荐建议。</p><div class="highlight">进阶能力：多维度评估画像+岗位胜任力智能匹配+数据驱动的推荐建议。</div><p>评估模型从专业能力、沟通表达、团队协作、学习潜力等多个维度对候选人进行评分。AI不是给出最终的录用决定，而是提供客观的数据分析供面试官参考，辅助但不替代人的判断。</p><ul><li>多维度评估：专业能力、沟通能力、团队协作、学习潜力等</li><li>候选人画像：综合面试表现生成立体的候选人能力画像</li><li>岗位匹配：与预设的岗位胜任力模型进行智能匹配评分</li><li>横向对比：在多个候选人之间进行能力维度对比</li></ul><p>这套系统的价值在于将面试评估从主观印象提升为数据驱动的客观分析，减少面试中的偏见，帮助企业做出更科学的人才选拔决策。</p>',quiz:[{q:'面试小助手的多维度评估模型的核心价值是什么？',o:['将面试评估从主观印象提升为数据驱动的客观分析减少偏见','完全取代面试官的专业判断让AI做出最终录用决定','多维度评估只是将面试官的评语重新排版展示','评估模型的分数可以直接作为候选人的绩效预测'],a:0},{q:'AI在面试评估中提供"数据分析供面试官参考"而非直接做决定，这种设计的意义是什么？',o:['AI的分析结果不够准确所以需要人类纠正错误','保持人类在人才决策中的主导权，AI作为辅助工具提供客观视角','这只是过渡方案未来AI将完全接管录用决策','面试官需要手动修改AI的每一项评分才有价值'],a:1}]}
+]},
+{id:'m8',level:'中级',name:'行政人事专题',color:'#00cec9',courses:[
+{id:'c8_1',title:'车辆管理（一）',tools:['AI表格'],content:'<p>利用AI表格搭建企业车辆管理系统，实现车辆台账数字化、用车申请自动化和调度智能化。系统将分散在各处的车辆信息集中管理，从纸质台账升级为实时可查的数字化管理平台。</p><div class="highlight">三大核心模块：车辆台账管理+用车申请审批+智能调度派车。</div><p>车辆台账记录每辆车的基本信息、保险期限、年检日期等，系统会自动在到期前提醒。用车申请通过表单提交，AI根据车辆可用状态和申请需求智能推荐最优车辆并自动调度。</p><ul><li>车辆台账：品牌型号、车牌号、保险到期、年检日期</li><li>用车申请：在线提交用车需求，自动匹配可用车辆</li><li>调度管理：查看车辆实时状态，智能排车</li></ul>',quiz:[{q:'车辆管理系统中台账管理与用车调度的关系是什么？',o:['台账管理和调度管理是两个完全独立的系统互不关联','台账提供车辆基本信息和状态数据，调度基于这些信息智能匹配可用车辆','台账只记录车辆的购买价格，调度功能不需要台账支持','调度管理可以替代台账管理不需要维护车辆信息'],a:1},{q:'车辆台账的到期自动提醒功能解决了什么管理痛点？',o:['提醒司机按时上班避免迟到','避免因保险过期或年检逾期带来的合规风险和潜在损失','提醒管理者购买新车扩大车队规模','提醒员工按时归还车辆钥匙'],a:1}]},
+{id:'c8_2',title:'车辆管理（二）',tools:['AI表格'],content:'<p>车辆管理进阶功能聚焦于维保管理和数据分析。通过记录每次维保和加油数据，AI自动分析每辆车的油耗趋势、维保成本和使用效率，为车队优化提供数据支撑。</p><div class="highlight">数据驱动决策：油耗分析、维保成本追踪、车辆使用率统计，优化车队管理。</div><p>系统自动生成车辆运营报表，包括单车月度油耗趋势、维保费用排行、车辆使用率分析等。管理者可以据此决定是否需要淘汰高油耗车辆、调整车辆配置或优化调度策略。</p><ul><li>油耗记录：每次加油自动计算油耗，AI分析异常波动</li><li>维保管理：保养记录、维修历史、配件更换跟踪</li><li>使用率分析：统计每辆车的使用频率和空闲时段</li></ul>',quiz:[{q:'车辆管理的数据分析功能如何支撑管理决策？',o:['数据分析只是生成图表供领导欣赏没有决策价值','通过油耗趋势、维保成本和使用率分析，管理者可以判断是否淘汰高油耗车辆或调整调度策略','数据分析会自动执行所有管理决策无需人工参与','只分析最新一周的数据就足以支撑年度车队规划'],a:1},{q:'AI分析发现某辆车的油耗突然异常升高，这一数据最可能提示什么问题？',o:['该车辆的保险即将到期需要续保','该车辆可能存在机械故障或异常使用情况需要及时排查','该车辆的行驶里程统计出现了系统误差','该车辆的驾驶员需要接受安全培训'],a:1}]},
+{id:'c8_3',title:'入离职系统（一）',tools:['AI表格'],content:'<p>入职流程自动化系统将传统的纸质入职流程转化为数字化全流程管理。从offer发放、入职材料收集到入职引导，每个环节都通过系统自动推进，大幅减少遗漏并提升新员工体验。</p><div class="highlight">入职全流程数字化：offer→材料收集→系统开通→座位安排→入职培训。</div><p>系统核心功能：HR在系统中创建入职记录后，自动触发一系列流程——向新员工发送材料提交链接、通知IT开通账号、通知行政安排工位、发送入职指引文档。每个环节完成后自动推进下一步。</p><ul><li>材料收集：在线表单收集入职材料，AI自动校验完整性</li><li>流程编排：入职各环节自动串联，状态实时可查</li><li>自动通知：到节点自动通知相关部门执行操作</li></ul>',quiz:[{q:'入职流程自动化系统的核心优势体现在哪个方面？',o:['将所有入职步骤合并为一步完成减少环节','通过系统自动串联各环节减少遗漏，同时提升新员工的入职体验','入职自动化意味着HR不再需要参与任何入职相关工作','系统会自动评估新员工是否适合该岗位'],a:1},{q:'入职系统中AI自动校验材料完整性的意义是什么？',o:['AI会自动判断候选人是否值得录用','确保所有必需材料按要求提交完整避免因遗漏影响后续流程','AI校验可以替代HR对入职材料的人工审核','校验只是形式上的检查即使材料不完整也不影响入职'],a:1}]},
+{id:'c8_4',title:'入离职系统（二）',tools:['AI表格'],content:'<p>离职交接管理同样需要系统化支持。良好的离职交接流程确保工作无缝衔接、资产归还完整、知识有效传承。AI表格系统可以自动生成交接清单、追踪交接进度、确保每个事项都不遗漏。</p><div class="highlight">离职交接的核心：交接清单全覆盖+进度实时追踪+确保无遗漏。</div><p>系统根据离职员工的部门和岗位自动生成标准化的交接清单，包括工作事项交接、客户关系移交、系统账号回收、物品归还等。每完成一项打钩确认，全部完成后才能办理最终离职手续。</p><ul><li>自动生成：根据岗位模板自动生成交接清单</li><li>进度追踪：实时查看交接进度，催办未完成事项</li><li>资产回收：设备、门禁卡、工牌等物品归还登记</li><li>知识传承：关键工作文档和经验的系统化移交</li></ul>',quiz:[{q:'离职交接系统根据什么自动生成不同的交接清单？',o:['根据离职员工的个人偏好和要求生成','根据离职员工所在部门和岗位的标准化模板生成','所有员工使用完全相同的交接清单不区分岗位','由离职员工自行编写交接内容系统不提供模板'],a:1},{q:'离职交接系统要求"全部完成后才能办理最终离职手续"的设计目的是什么？',o:['增加离职流程的复杂度延长离职时间','确保所有交接事项不遗漏，工作、资产和知识都得到完整移交','这只是系统的默认设置实际使用中可以跳过','目的是给离职员工施加压力减少主动离职率'],a:1}]},
+{id:'c8_5',title:'智能招聘全自动',tools:['AI表格'],content:'<p>使用AI表格搭建全流程自动化招聘管理系统，覆盖从职位发布、简历收集、候选人筛选、面试安排到录用决策的完整招聘链路。AI在每个环节提供智能辅助，大幅提升招聘效率和质量。</p><div class="highlight">全流程自动化：简历筛选→面试安排→评估打分→offer发放，AI贯穿始终。</div><p>AI在招聘中的应用包括：自动解析简历提取关键信息、根据岗位要求智能筛选匹配的候选人、自动排期面试时间、汇总面试评价生成综合评估报告。整个过程比传统招聘效率提升3-5倍。</p><ul><li>简历管理：自动解析和分类管理大量简历</li><li>智能筛选：AI根据岗位要求自动匹配候选人</li><li>面试管理：自动排期、通知候选人和面试官</li><li>评估决策：汇总多轮面试评价生成综合报告</li></ul>',quiz:[{q:'智能招聘系统中AI贯穿全流程的含义是什么？',o:['AI在每个环节都做出最终决策替代HR的所有判断','AI在简历筛选、面试安排、评估汇总等每个环节提供智能辅助提升效率','AI只参与简历筛选环节其他环节完全由人工完成','全流程AI意味着招聘不再需要HR部门参与'],a:1},{q:'AI智能筛选候选人与人工筛选相比的核心优势是什么？',o:['AI筛选速度快但准确性不如人工筛选','AI能根据岗位要求在大量简历中快速匹配候选人，效率提升数倍且标准更一致','AI筛选只看关键词匹配无法理解候选人的综合能力','AI筛选结果不需要人工复核可以直接用于面试邀约'],a:1}]},
+{id:'c8_6',title:'值班排班（一）',tools:['AI表格'],content:'<p>AI智能排班系统能综合考虑员工偏好、公平性原则、业务需求和法规约束，自动生成最优的排班方案。相比人工排班，AI排班不仅速度更快，还能更好地平衡各方面的需求。</p><div class="highlight">AI排班的核心优势：综合考虑员工偏好、公平性和业务需求，自动生成最优方案。</div><p>系统允许员工提交排班偏好（如希望休息的日期），AI在满足业务覆盖要求的前提下尽量照顾个人偏好，同时确保排班的公平性——避免某些员工总是被安排在不受欢迎的时段。</p><ul><li>偏好采集：员工在线提交排班偏好和不可用时间</li><li>自动排班：AI综合各因素自动生成排班表</li><li>公平性检查：确保工作量和时段分配均衡</li><li>发布通知：排班结果自动通知每位员工</li></ul>',quiz:[{q:'AI排班系统需要综合考虑的核心因素有哪些？',o:['只需要考虑业务覆盖需求其他因素不重要','需要综合考虑员工偏好、公平性原则和业务需求三方面','只需要根据员工的工龄和职级来安排班次','AI排班只是将现有手动排班方案数字化呈现'],a:1},{q:'排班系统中公平性检查机制的设计目的是什么？',o:['确保每位员工的工作时长完全相同精确到分钟','确保工作量和不受欢迎时段的分配在员工之间保持均衡','公平性检查只是系统的附加功能对排班质量没有影响','确保管理者优先获得理想的班次安排'],a:1}]},
+{id:'c8_7',title:'值班排班（二）',tools:['AI表格'],content:'<p>排班系统的进阶功能涵盖换班管理、考勤记录和加班费自动计算。员工可以在系统中发起换班申请，系统自动匹配可换班的同事；考勤数据与排班表自动比对；加班费根据规则自动计算。</p><div class="highlight">进阶功能：换班审批+考勤自动比对+加班费智能计算。</div><p>换班流程：员工发起换班请求→系统推荐可换班的同事→双方确认→管理者审批→排班表自动更新。整个流程在线完成，避免口头换班导致的管理混乱和纠纷。</p><ul><li>换班管理：在线发起、匹配、审批，排班表自动更新</li><li>考勤比对：打卡记录与排班自动匹配，标记迟到早退</li><li>加班计算：根据实际出勤和排班差异自动计算加班时长和费用</li><li>月度汇总：自动生成考勤月报和加班费汇总</li></ul>',quiz:[{q:'排班系统的在线换班流程相比传统口头换班的核心改进是什么？',o:['在线换班速度更慢但记录更完整','通过系统化的申请、确认和审批流程避免口头换班导致的管理混乱和责任不清','在线换班不需要管理者审批员工之间直接确认即可','换班后排班表需要管理者手动更新系统不会自动同步'],a:1},{q:'考勤数据与排班表自动比对的核心价值是什么？',o:['只是方便生成考勤报表没有实际管理价值','自动识别迟到早退和实际加班情况，为薪酬计算提供准确数据','比对结果只供参考实际薪酬仍需完全手动计算','自动比对会替代管理者对异常考勤做出处理决定'],a:1}]},
+{id:'c8_8',title:'固定资产管理',tools:['AI表格'],content:'<p>固定资产管理系统覆盖资产的全生命周期：从采购入库、领用分配、日常维修到最终报废。通过AI表格搭建的系统能实时追踪每项资产的位置、状态和使用人，解决资产管理中常见的账实不符问题。</p><div class="highlight">全生命周期管理：采购→入库→领用→使用→维修→报废，全程可追溯。</div><p>系统为每项资产建立唯一的数字档案，记录其完整的流转历史。通过关联字段将资产与使用人、部门绑定，确保责任到人。AI自动分析资产使用状况，提醒维保到期和建议报废更换。</p><ul><li>采购入库：资产信息录入，生成唯一资产编号</li><li>领用归还：在线申请领用，归还时核实状态</li><li>维修管理：报修→派工→维修→验收全流程</li><li>报废处理：达到使用年限或损坏的资产报废审批</li></ul>',quiz:[{q:'固定资产全生命周期管理中，为每项资产建立唯一数字档案的核心目的是什么？',o:['记录资产的购买价格方便会计记账','实现资产从采购到报废的全程可追溯，解决账实不符问题','数字档案只用于资产盘点时核对数量','建立档案是为了在资产报废时计算折旧金额'],a:1},{q:'通过关联字段将资产与使用人、部门绑定的管理意义是什么？',o:['方便统计各部门的资产总价值用于财务报告','确保每项资产责任到人，明确资产的使用归属和管理责任','关联绑定只是界面展示的优化没有管理上的实际意义','绑定后资产不能在部门之间调配降低了资源利用灵活性'],a:1}]}
+]},
+{id:'m9',level:'中级',name:'项目管理专题',color:'#6c5ce7',courses:[
+{id:'c9_1',title:'IT研发项目管理',tools:[],content:'<p>AI赋能IT研发项目管理，将传统的需求管理、迭代规划、缺陷追踪和发布管理等环节进行智能化升级。AI能自动分析需求优先级、预测项目风险、生成进度报告，帮助研发团队提升交付效率和质量。</p><div class="highlight">核心模块：需求管理→迭代规划→开发跟踪→缺陷管理→发布管理。</div><p>在需求管理阶段，AI可以辅助分析需求的复杂度和工作量预估；在迭代规划阶段，AI根据团队产能和需求优先级推荐最优的迭代计划；在缺陷管理阶段，AI自动分类缺陷并关联相关需求。</p><ul><li>需求管理：需求收集、分析、评审、优先级排序</li><li>迭代规划：基于产能的Sprint规划和任务分配</li><li>缺陷追踪：缺陷记录、分类、分配和验证闭环</li><li>发布管理：版本发布计划和上线检查清单</li></ul>',quiz:[{q:'IT研发项目管理中AI辅助需求分析的核心价值是什么？',o:['AI自动编写所有需求文档替代产品经理的工作','AI辅助评估需求的复杂度和工作量预估，帮助团队做出更准确的迭代规划','AI只能统计需求数量无法分析需求的复杂度','AI的需求分析结果可以直接作为开发排期的唯一依据'],a:1},{q:'在研发项目全链路管理中，缺陷管理与需求管理的关联意义是什么？',o:['缺陷管理和需求管理是完全独立的模块互不影响','将缺陷与相关需求关联有助于追溯问题根源和评估需求实现的质量','关联只是为了在报告中展示更完整的数据','缺陷应该由AI自动修复不需要与需求关联'],a:1}]},
+{id:'c9_2',title:'敏捷研发实战',tools:['AI表格'],content:'<p>用AI表格搭建敏捷研发管理工具，支持Sprint看板、燃尽图、每日站会记录等敏捷核心实践。看板视图直观展示任务状态流转，燃尽图自动跟踪Sprint进度，帮助团队及时发现和解决问题。</p><div class="highlight">敏捷三板斧：看板可视化任务状态+燃尽图跟踪进度+站会记录沟通问题。</div><p>AI表格的看板视图天然适合敏捷管理：将任务按"待办→进行中→评审→完成"分列展示，团队成员拖拽任务卡片即可更新状态。燃尽图通过公式和图表字段自动生成，无需额外工具。</p><ul><li>Sprint看板：拖拽式任务状态管理，直观展示工作流</li><li>燃尽图：自动计算剩余工作量，预警进度偏差</li><li>站会记录：每日站会的阻塞项和进展自动汇总</li><li>回顾总结：Sprint结束后自动生成回顾报告</li></ul>',quiz:[{q:'用AI表格的看板视图实现敏捷Sprint管理的核心原理是什么？',o:['看板只是将任务列表换了一种展示方式没有管理价值','按任务状态分列展示使工作流转可视化，团队成员拖拽更新状态实现高效协作','看板视图只适合个人任务管理不适合团队协作','使用看板视图需要先学习专业的敏捷管理认证'],a:1},{q:'燃尽图在Sprint管理中的核心作用是什么？',o:['记录每位团队成员的工作时长用于绩效考核','自动跟踪剩余工作量的变化趋势，帮助团队及时发现进度偏差','燃尽图只是项目结束后的回顾工具不用于过程管理','生成团队成员的工作量排名'],a:1}]},
+{id:'c9_3',title:'AI任务管理',tools:['AI表格'],content:'<p>AI智能任务管理系统超越了传统的任务清单，实现任务的智能分配、自动追踪和风险预警。AI根据任务特点和团队成员的技能专长自动推荐最佳负责人，根据截止日期和当前进度自动发出预警通知。</p><div class="highlight">三大核心能力：智能分配（匹配合适的人）+自动追踪（实时掌握进度）+风险预警（提前发现问题）。</div><p>系统会分析每位团队成员的当前任务负载和历史完成效率，在分配新任务时给出推荐。对于即将逾期的任务，系统自动向负责人和管理者发送预警；对于依赖链上的阻塞，自动通知相关方协调。</p><ul><li>智能分配：根据技能和负载推荐最佳任务负责人</li><li>进度追踪：自动汇总任务完成率和趋势</li><li>逾期预警：临近截止日期自动提醒，超期自动升级</li><li>依赖管理：任务之间的前后依赖关系可视化</li></ul>',quiz:[{q:'AI智能任务分配系统推荐负责人时综合考虑哪些因素？',o:['只按照员工的职级高低进行分配','综合分析团队成员的技能专长和当前任务负载来推荐最佳人选','随机分配以确保公平性','只分配给最近完成任务的员工因为他们现在有空'],a:1},{q:'AI任务管理中"依赖管理"功能解决的核心问题是什么？',o:['统计每个任务的完成时长用于效率分析','可视化任务之间的前后依赖关系，当上游阻塞时自动通知相关方协调','依赖管理只是将任务按时间排序展示','依赖管理会自动完成被阻塞的下游任务'],a:1}]}
+]},
+{id:'m10',level:'中级',name:'销售专题',color:'#e17055',courses:[
+{id:'c10_1',title:'AI助力销售',tools:['AI表格'],content:'<p>AI赋能销售管理，从客户信息管理、跟进记录、到商机预测全面提升销售团队效率。通过AI表格搭建CRM系统，销售人员可以更系统地管理客户关系，AI提供智能提醒确保每个客户都得到及时跟进。</p><div class="highlight">AI销售管理的最大价值：提升销售效率和客户跟进质量，而非替代销售人员。</div><p>系统核心功能：客户360度画像（整合客户所有信息和交互记录）、智能跟进提醒（根据客户状态和最后联系时间自动提醒）、销售漏斗管理（可视化每个销售阶段的客户数量和转化率）。</p><ul><li>客户管理：客户信息、联系记录、需求标签集中管理</li><li>跟进提醒：AI根据客户热度自动设置和推送跟进提醒</li><li>漏斗分析：从线索到成交的转化率可视化分析</li><li>业绩看板：个人和团队销售目标完成进度实时展示</li></ul>',quiz:[{q:'AI销售管理系统中"客户360度画像"的含义是什么？',o:['为每个客户拍摄360度全景照片用于身份识别','整合客户的所有信息和交互记录形成全面的客户认知视图','只记录客户的基本联系方式如姓名和电话','360度画像是一种客户评分模型只输出一个数字'],a:1},{q:'智能跟进提醒机制如何帮助销售团队避免客户流失？',o:['提醒销售人员每天给所有客户打电话保持联系','根据客户状态和最后联系时间自动提醒确保每个客户都得到及时跟进','提醒机制只在客户主动联系时才触发通知','系统会自动给客户发送促销信息替代人工跟进'],a:1}]},
+{id:'c10_2',title:'AI销售跟进',tools:['AI表格'],content:'<p>AI销售跟进系统深入客户画像构建和成交预测。系统自动分析客户的行为数据（如打开邮件次数、访问产品页面频率），结合历史成交数据建立预测模型，评估每个商机的成交概率。</p><div class="highlight">亮点功能：智能客户画像+自动跟进提醒+成交概率预测。</div><p>客户画像不仅包含基本信息，还包括AI分析的行为特征标签，如"价格敏感型""决策周期长""技术导向"等。销售人员根据客户画像采用差异化的沟通策略，提升成交率。</p><ul><li>客户画像：AI自动生成客户特征标签和行为分析</li><li>行为追踪：记录客户每次互动行为和响应情况</li><li>成交预测：基于历史数据预测商机成交概率</li><li>策略推荐：AI根据客户特征推荐沟通策略和话术</li></ul>',quiz:[{q:'AI生成的客户行为特征标签（如"价格敏感型""决策周期长"）对销售人员有什么实际帮助？',o:['标签只是数据展示对实际销售工作没有指导意义','帮助销售人员了解客户特点并采用差异化的沟通策略提升成交率','标签由AI自动生成准确率不高销售人员不应参考','标签用于对客户进行等级划分决定是否继续跟进'],a:1},{q:'AI成交概率预测模型的数据基础是什么？',o:['基于销售人员的主观判断打分','基于历史成交数据和客户行为数据（如邮件打开率、页面访问频率）建立的预测模型','只看客户的公司规模和行业来判断成交可能性','预测模型不需要历史数据可以对新客户直接预测'],a:1}]},
+{id:'c10_3',title:'经验萃取（一）',tools:['DEAP'],content:'<p>利用DEAP平台搭建销售经验萃取系统，将优秀销售人员的话术、技巧和最佳实践系统化地沉淀为团队知识资产。这些经验不再局限于个人，而是通过AI助手赋能整个团队。</p><div class="highlight">核心价值：将个人销售经验转化为团队可复用的知识资产。</div><p>搭建步骤：首先收集优秀销售案例和成功话术，整理为结构化的知识库；然后配置AI问答智能体，使销售人员能随时查询最佳实践；最后设置场景化的话术推荐，在特定销售场景下自动推荐适合的沟通方式。</p><ul><li>话术库建设：收集和整理各场景下的优秀话术</li><li>案例沉淀：记录成功销售案例的关键要素和方法论</li><li>AI问答：销售人员遇到困难时随时向AI查询最佳实践</li><li>新人培训：新销售快速学习团队积累的销售经验</li></ul>',quiz:[{q:'销售经验萃取系统将"个人经验转化为团队知识资产"的核心意义是什么？',o:['限制优秀销售人员的独特优势让所有人水平拉平','让整个团队都能学习和复用优秀销售的方法论和最佳实践加速新人成长','经验萃取只适合存档备查对日常销售没有直接帮助','系统化的经验库会限制销售人员的自主发挥能力'],a:1},{q:'知识库中的话术和案例应该优先来自什么数据源？',o:['从互联网上搜索的通用销售技巧文章','团队中优秀销售人员的实际成功案例和经过验证的话术','由AI自动生成的标准化话术模板','行业销售教科书中的理论框架'],a:1}]},
+{id:'c10_4',title:'经验萃取（二）',tools:['DEAP'],content:'<p>经验萃取的进阶应用是利用AI自动从大量销售记录中提取成功要素和规律。AI分析成功交易与失败交易的差异，识别出影响成交的关键因素，并主动向销售人员推荐在当前场景下最有效的话术策略。</p><div class="highlight">进阶能力：AI自动从历史数据中提取成功要素，主动推荐最佳话术策略。</div><p>系统通过分析大量成交记录，发现成功销售的共性模式：什么样的开场白最有效、在什么时间段联系客户响应率最高、面对价格异议时哪种回应方式成交率最高等。这些洞察被AI自动总结并推荐给销售人员。</p><ul><li>模式挖掘：AI分析成功交易的共性特征和规律</li><li>话术推荐：根据当前销售场景推荐最有效的话术</li><li>最佳时机：分析数据找出联系客户的最佳时间</li><li>策略优化：持续学习和优化推荐策略</li></ul>',quiz:[{q:'进阶经验萃取中AI"从历史数据自动提取成功要素"与基础版的人工整理有什么区别？',o:['没有区别只是处理速度更快','AI能从大量成交记录中发现人工难以察觉的成功模式和规律，并主动推荐最佳策略','AI提取的规律不如人工总结的经验可靠应以人工为主','AI只能分析文字内容无法处理数据化的销售记录'],a:1},{q:'AI分析发现"周二上午10点联系客户的响应率最高"，这类洞察的价值是什么？',o:['这类统计巧合没有实际参考价值','帮助销售人员优化联系客户的时机选择，提升沟通效率和响应率','意味着销售人员只能在周二上午工作其他时间不需要跟进','数据分析结果只适用于分析期间的客户不适用于新客户'],a:1}]}
+]},
+{id:'m11',level:'中级',name:'教育专题',color:'#00b894',courses:[
+{id:'c11_1',title:'校园活动（一）',tools:['AI表格'],content:'<p>使用AI表格搭建校园活动管理系统，实现活动策划、报名管理的全流程数字化。从活动发布、在线报名、参与者管理到现场签到，每个环节都通过系统自动化管理，大幅减轻活动组织者的工作负担。</p><div class="highlight">活动管理全流程：AI策划→活动发布→在线报名→名额管理→现场签到。</div><p>系统功能包括：AI辅助生成活动策划方案、自动生成报名表单并分发、实时查看报名情况和名额、自动发送活动提醒通知、生成签到二维码实现快速签到。</p><ul><li>活动策划：AI根据活动类型自动生成策划方案模板</li><li>报名管理：在线表单报名，实时查看名额和报名者信息</li><li>通知提醒：活动前自动发送提醒，减少爽约率</li><li>现场签到：二维码签到，实时统计到场率</li></ul>',quiz:[{q:'校园活动管理系统中AI辅助策划的核心价值是什么？',o:['AI自动决定活动的所有细节无需人工参与','根据活动类型自动生成策划方案模板加速策划过程同时确保方案完整性','AI只能提供过往活动的数据统计不能生成新的策划方案','AI策划方案可以直接使用不需要根据实际情况调整'],a:1},{q:'在线报名系统相比传统纸质报名的核心优势体现在哪里？',o:['在线报名界面更美观但功能与纸质报名相同','支持实时查看报名情况和名额管理，自动发送活动提醒减少爽约率','在线报名只适合小规模活动大型活动仍需纸质登记','报名数据只能在系统中查看无法导出做后续分析'],a:1}]},
+{id:'c11_2',title:'校园活动（二）',tools:['AI表格'],content:'<p>活动结束后的数据分析和效果评估同样重要。AI自动汇总活动数据——参与人数、到场率、满意度反馈等，生成活动效果评估报告，为后续活动的改进提供数据支撑。</p><div class="highlight">进阶功能：活动数据分析+效果评估+自动生成总结报告。</div><p>系统自动整合活动全流程数据：报名转化率（发布到报名的转化）、到场率（报名到实际参加的比率）、满意度评分（活动后问卷自动汇总）。AI分析这些数据并生成改进建议。</p><ul><li>数据汇总：参与人数、到场率、满意度等核心指标</li><li>效果评估：多维度分析活动的成功因素和不足</li><li>AI总结：自动生成图文并茂的活动总结报告</li><li>改进建议：基于数据分析为下次活动提供优化建议</li></ul>',quiz:[{q:'活动结束后进行数据分析和效果评估的意义是什么？',o:['只是为了完成活动总结报告的行政要求','通过多维数据分析发现活动的成功因素和不足，为后续活动改进提供数据支撑','活动结束后的数据分析只需要统计参与人数即可','效果评估应该完全依靠主观感受而非数据分析'],a:1},{q:'AI分析活动数据时，"报名转化率"这一指标反映的是什么？',o:['活动的现场满意度评分','从活动发布到实际报名的转化效果，反映活动宣传的吸引力','活动现场的签到率','参加活动的人中再次参加下次活动的比例'],a:1}]},
+{id:'c11_3',title:'AI访客管理',tools:['AI表格'],content:'<p>AI访客管理系统实现来访人员的全流程数字化管理，从在线预约、身份验证、访客登记到来访记录查询。系统通过AI表格自动管理访客信息，提升校园安全管理水平的同时改善来访者体验。</p><div class="highlight">核心功能：在线预约→身份验证→自动登记→被访人通知→来访记录管理。</div><p>访客预约流程：来访者通过链接提前预约，填写来访信息和被访人；系统自动通知被访人确认；来访当天通过二维码或人脸识别完成快速登记；系统自动记录来访时间和离开时间。</p><ul><li>在线预约：访客提前在线填写来访信息</li><li>身份验证：二维码或人脸识别快速验证身份</li><li>自动通知：来访时自动通知被访人前来接待</li><li>记录管理：来访记录可查询、可导出、可分析</li></ul>',quiz:[{q:'AI访客管理系统如何同时提升安全管理水平和来访者体验？',o:['安全管理和体验优化是矛盾的只能选择其一','通过在线预约和快速验证减少现场等待时间，同时通过数字化记录提升安全管控能力','系统只关注安全管控不需要考虑来访者的使用体验','完全取消人工接待由AI全权管理所有访客事务'],a:1},{q:'访客管理系统中自动通知被访人的环节解决了什么问题？',o:['通知只是礼貌性的提醒没有流程管理价值','确保访客到达后被访人能及时知悉并前来接待，避免访客长时间等待','通知功能替代了前台的所有工作','通知只在被访人不在公司时才需要发送'],a:1}]},
+{id:'c11_4',title:'智慧餐厅',tools:['AI表格'],content:'<p>使用AI表格搭建智慧餐厅管理系统，涵盖菜品管理、在线订餐和数据分析三大模块。系统帮助餐厅实现菜品信息数字化、订餐流程自动化，并通过AI分析用餐数据优化菜品配置和减少浪费。</p><div class="highlight">三大模块：菜品管理（数字化菜单）+在线订餐（自助下单）+数据分析（优化运营）。</div><p>AI在餐厅管理中的应用包括：分析历史订餐数据预测每日需求量、识别受欢迎和不受欢迎的菜品、根据季节和天气推荐菜单调整方案、统计各时段的用餐人数优化备餐安排。</p><ul><li>菜品管理：菜品信息、图片、价格、营养数据管理</li><li>在线订餐：员工或学生在线选餐，系统汇总需求</li><li>需求预测：AI根据历史数据预测每日订餐量</li><li>浪费分析：统计剩餐率，建议菜品和分量调整</li></ul>',quiz:[{q:'智慧餐厅系统中AI需求预测功能的核心价值是什么？',o:['预测只是统计每天的订餐总量用于财务结算','根据历史数据预测每日各菜品的需求量，帮助优化备餐减少食物浪费','预测结果只供参考厨师仍按照固定配方备餐','AI预测只适用于标准化快餐不适用于多菜品餐厅'],a:1},{q:'AI分析发现某道菜品的点单率持续下降而剩餐率持续上升，最合理的处理建议是？',o:['增加该菜品的备餐量确保供应充足','考虑调整或替换该菜品，将资源投入到更受欢迎的菜品上','忽略数据变化因为菜单应保持稳定不宜频繁更换','将该菜品改为每天限量供应以制造稀缺感'],a:1}]},
+{id:'c11_5',title:'AI报修速办台',tools:['AI表格'],content:'<p>AI报修速办台是一个一键报修和智能派单系统。师生发现设施问题后通过手机一键提交报修（可拍照描述问题），系统AI自动分类问题类型，智能派单给对应维修人员，并全程追踪维修进度直到问题解决。</p><div class="highlight">核心流程：一键报修→AI分类→智能派单→维修跟踪→完工确认。</div><p>系统亮点：用户只需拍照和简单描述问题，AI自动识别问题类型（如水电、门窗、网络等）；根据问题类型和维修人员的专长自动派单；维修人员通过手机接单、上传维修过程、确认完工；报修人收到完工通知后评价服务质量。</p><ul><li>一键报修：拍照+文字描述，3秒提交</li><li>AI分类：自动识别问题类型和紧急程度</li><li>智能派单：根据专长和距离自动分配维修人员</li><li>进度追踪：报修人实时查看维修进度</li></ul>',quiz:[{q:'AI报修系统中"智能派单"相比传统人工派单的核心改进是什么？',o:['智能派单速度更快但分配结果与人工派单相同','根据问题类型和维修人员的专长自动匹配最合适的处理人并缩短响应时间','智能派单只是将工单随机分配给在线的维修人员','派单后系统不追踪维修进度需要报修人自行跟进'],a:1},{q:'用户在报修时拍照并简单描述问题后，AI自动分类的技术基础是什么？',o:['AI只根据用户选择的问题分类标签进行归类','AI通过图像识别和自然语言理解分析照片内容和文字描述自动判断问题类型和紧急程度','AI分类只依赖关键词匹配无法理解问题的实际含义','分类工作由人工审核后才能确认AI不参与实际判断'],a:1}]}
+]},
+{id:'m12',level:'中级',name:'制造业专题',color:'#636e72',courses:[
+{id:'c12_1',title:'AI质检（一）',tools:['AI字段'],content:'<p>AI视觉质检利用计算机视觉技术对产品外观进行自动检测，能够发现肉眼难以察觉的细微缺陷。与人工质检相比，AI质检具有高精度、高速度、24小时不疲劳的优势，是制造业质量管理的革命性工具。</p><div class="highlight">核心优势：高精度+高速度+24小时不疲劳，质检效率提升10倍以上。</div><p>实现方式：通过AI字段对上传的产品照片进行自动分析，AI模型判断产品是否存在划痕、变形、色差等缺陷，并自动标注缺陷类型和位置。检测结果自动写入质检记录表，不合格品触发预警和处理流程。</p><ul><li>缺陷识别：自动检测划痕、变形、色差等多种缺陷类型</li><li>批次追溯：每件产品的质检结果与批次关联</li><li>合格率统计：自动计算产线合格率趋势</li><li>异常预警：合格率低于阈值时自动告警</li></ul>',quiz:[{q:'AI视觉质检相比人工质检的核心优势体现在哪些方面？',o:['AI质检只适用于大批量生产场景不适用于小批量精密零件','AI质检具备高精度、高速度和24小时不疲劳的特点，能发现肉眼难以察觉的细微缺陷','AI质检完全不需要人工参与可以替代所有质量管理环节','AI质检的准确率低于人工但速度更快适合对质量要求不高的场景'],a:1},{q:'当AI质检系统检测到产品合格率低于预设阈值时，系统应该如何响应？',o:['自动停止生产线等待管理者手动重启','自动发出告警通知并触发预设的问题处理流程','只在日报中记录不做实时处理','将不合格品自动混入合格品批次继续出货'],a:1}]},
+{id:'c12_2',title:'AI质检（二）',tools:['AI字段'],content:'<p>AI质检的进阶应用是预测性质量控制。通过分析历史质检数据的趋势变化，AI能在质量问题大规模出现之前预测风险并发出预警，使企业从"被动应对"转为"主动预防"。</p><div class="highlight">从被动检测到主动预防：AI分析数据趋势，在问题大规模出现前预测并预警。</div><p>系统分析质检数据的时间序列趋势，当某项指标出现恶化趋势（如合格率缓慢下降、某类缺陷比例上升）时，AI主动发出预警并分析可能的原因（如原材料变化、设备磨损、工艺偏移等）。</p><ul><li>趋势分析：跟踪各质检指标的变化趋势</li><li>风险预测：预测未来可能出现的质量问题</li><li>根因关联：分析质量变化与生产参数的关联性</li><li>改善建议：AI给出具体的调整建议</li></ul>',quiz:[{q:'预测性质量控制与传统质检的本质区别是什么？',o:['预测性质控使用更先进的检测设备但工作方式相同','预测性质控通过分析数据趋势在问题大规模出现前预测风险，从被动检测转为主动预防','预测性质控不需要实际的质检数据只需理论模型','预测性质控只适用于电子产品制造不适用于其他行业'],a:1},{q:'AI发现某类缺陷比例呈缓慢上升趋势，最可能的分析方向是什么？',o:['这是正常的随机波动不需要关注','可能与原材料变化、设备磨损或工艺参数偏移等因素相关需要深入排查','只要合格率仍在标准范围内就不需要分析趋势变化','缺陷比例上升说明AI检测灵敏度提高了是好事'],a:1}]},
+{id:'c12_3',title:'管理设备（一）',tools:['AI表格'],content:'<p>制造业设备管理系统覆盖设备的全生命周期：从采购入库、安装调试、日常巡检、定期维保到报废处理。通过AI表格搭建的系统能实时掌握每台设备的运行状态，确保生产设备始终处于良好工作状态。</p><div class="highlight">设备全生命周期管理：台账→巡检→维保→故障处理→报废。</div><p>设备台账记录每台设备的基本信息、技术参数、供应商信息、保修期限等。巡检模块支持按计划定期巡检，巡检人员通过手机记录设备状态。维保模块管理保养计划和维修记录。</p><ul><li>设备台账：全面的设备信息数字化管理</li><li>巡检计划：定期巡检任务自动生成和分配</li><li>维保管理：保养计划制定和维修记录跟踪</li><li>报废流程：达到使用年限的设备报废审批</li></ul>',quiz:[{q:'设备全生命周期管理中，定期巡检环节的核心目的是什么？',o:['巡检只是管理制度的形式要求对设备维护没有实际帮助','通过定期检查及时发现设备隐患防止故障发生确保生产安全和连续性','巡检只需要检查设备外观是否干净整洁','巡检数据只用于存档不需要进行分析和跟踪'],a:1},{q:'数字化设备台账相比纸质台账的核心优势体现在哪里？',o:['数字化台账界面更美观但信息内容与纸质台账相同','支持实时查询设备状态并与巡检、维保数据关联实现信息化闭环管理','数字化台账只是将纸质信息扫描存档方便保存','数字化台账不适合记录设备的技术参数和供应商信息'],a:1}]},
+{id:'c12_4',title:'管理设备（二）',tools:['AI表格'],content:'<p>设备管理的进阶功能是预测性维护。通过分析设备运行数据（如运行时长、温度、振动等），AI预测设备可能出现的故障并提前安排维护，从"坏了再修"转变为"故障前维护"，大幅减少非计划停机。</p><div class="highlight">预测性维护的核心价值：在设备故障前维护，减少非计划停机和维修成本。</div><p>传统的事后维修（坏了再修）会导致意外停机损失；定期维保（按时间保养）可能造成过度维护浪费。预测性维护基于设备实际状态来安排维护时机，是最经济高效的维护策略。</p><ul><li>数据采集：记录设备运行参数和状态指标</li><li>异常检测：AI发现运行参数偏离正常范围</li><li>故障预测：预测设备可能在何时出现什么故障</li><li>维护排程：在最优时机安排维护，最小化生产影响</li></ul>',quiz:[{q:'预测性维护与定期维保（按固定时间保养）相比的核心区别是什么？',o:['预测性维护就是把定期维保的间隔缩短以更频繁地保养','预测性维护基于设备实际运行状态数据来安排维护时机，避免定期维保可能的过度或不足','预测性维护只适用于价格昂贵的进口设备','预测性维护不需要任何传感器数据只依靠维修人员的经验'],a:1},{q:'从"坏了再修"到"预测性维护"的转变能为企业带来什么核心收益？',o:['增加维护频率和维护成本','显著减少非计划停机时间降低因意外故障造成的生产损失','预测性维护会导致设备使用寿命缩短','这种转变只适合大型企业中小企业不适用'],a:1}]},
+{id:'c12_5',title:'管理模具（一）',tools:['AI表格'],content:'<p>模具是制造业的重要资产，一套精密模具价值可达数万到数十万元。模具数字化管理系统通过AI表格精准追踪每套模具的位置、使用状态、已使用寿命，确保模具得到合理使用和及时维护。</p><div class="highlight">模具管理的核心价值：精准追踪每套模具的状态和寿命，延长使用寿命降低成本。</div><p>系统为每套模具建立数字档案，记录模具的设计参数、已使用次数、最大使用寿命、当前存放位置和状态。当模具接近寿命上限或需要维护时，系统自动发出预警。</p><ul><li>模具台账：编号、规格、设计寿命、当前状态</li><li>使用记录：每次使用的产品、数量和时间</li><li>寿命追踪：已使用次数与设计寿命的对比</li><li>位置管理：实时掌握每套模具的存放位置</li></ul>',quiz:[{q:'模具数字化管理中，寿命追踪功能解决的核心问题是什么？',o:['只是记录模具使用了多少次方便统计报表','在模具接近寿命上限时提前预警，避免因过度使用导致产品质量问题或模具意外损坏','寿命追踪只是估算值实际中模具可以无限使用','追踪寿命的目的是尽快报废模具购买新的'],a:1},{q:'为每套模具建立数字档案并记录完整流转历史的管理价值是什么？',o:['档案只是为了应对审计检查没有日常管理价值','精准掌握每套模具的位置、状态和使用历史，确保模具得到合理调度和及时维护','数字档案只记录模具的购买价格和供应商信息','建立档案会增加管理复杂度降低模具的使用效率'],a:1}]},
+{id:'c12_6',title:'管理模具（二）',tools:['AI表格'],content:'<p>模具管理的进阶功能聚焦于成本分析和采购规划。系统自动核算每套模具的使用成本（包括采购、维修、产出数量），计算单件模具分摊成本，并基于使用趋势预测模具的采购更换计划。</p><div class="highlight">进阶功能：维修成本追踪+单件成本分摊+采购更换预测。</div><p>成本分析帮助企业了解每套模具的真实经济效益：高频使用且维修少的模具性价比高，频繁维修的模具可能需要考虑更换或升级。AI综合分析这些数据给出采购建议。</p><ul><li>维修成本：每次维修的费用和时长记录</li><li>成本分摊：模具总成本除以产出数量得到单件成本</li><li>性价比分析：比较不同模具的经济效益</li><li>采购预测：根据使用趋势预测何时需要采购新模具</li></ul>',quiz:[{q:'模具成本分析中"单件成本分摊"的计算方式和决策意义是什么？',o:['单件成本等于模具采购价格除以使用年限','模具总成本（含采购和维修）除以产出数量，帮助评估模具的真实经济效益','单件成本只看维修费用不考虑采购价格','成本分摊数据只用于财务报告对采购决策没有参考价值'],a:1},{q:'当AI分析发现某套模具频繁维修且单件成本远高于同类模具时，合理的决策方向是什么？',o:['继续使用并增加维修预算因为新模具采购需要时间','评估该模具是否需要更换或升级,综合考虑继续维修成本与采购新模具的投资回报','立即报废该模具停止对应产品的生产','降低该模具生产的产品价格以消化更高的成本'],a:1}]},
+{id:'c12_7',title:'管好客诉（一）',tools:['AI表格'],content:'<p>客户投诉管理系统将客诉处理从被动应对升级为系统化管理。当客户投诉进入后，AI自动受理、智能分类（产品质量、物流、服务态度等），并根据分类自动派发给对应的处理部门，确保每个投诉都得到及时响应。</p><div class="highlight">客诉处理第一步：AI自动受理→智能分类→自动派发→限时处理。</div><p>系统设定处理时限，超时未处理自动升级提醒。每个投诉的处理过程全程记录，包括受理时间、处理方案、客户反馈等，形成完整的处理档案便于后续追溯。</p><ul><li>自动受理：多渠道（电话、在线、邮件）投诉统一入口</li><li>智能分类：AI根据投诉内容自动识别类别和优先级</li><li>自动派单：按分类规则派发给对应处理人员</li><li>时限管控：超时自动升级，确保投诉及时处理</li></ul>',quiz:[{q:'客诉处理系统中设定处理时限并超时自动升级的管理意义是什么？',o:['超时升级只是系统的提醒功能不影响实际处理流程','确保每个投诉都在规定时间内得到响应,防止投诉被搁置或遗忘','时限设置越短越好这样可以强制快速解决所有问题','超时升级会给处理人员造成不必要的压力应该取消'],a:1},{q:'AI自动分类客户投诉的核心价值是什么？',o:['分类只是为了统计报表上的分类占比数据','根据投诉内容自动识别类别和优先级确保工单被准确派发给对应的处理部门','AI分类的准确率不如人工应该由客服手动分类','分类结果只用于存档不影响投诉的实际处理流程'],a:1}]},
+{id:'c12_8',title:'管好客诉（二）',tools:['AI表格'],content:'<p>客诉管理的进阶目标是从个案处理升级为根因分析和系统性改善。AI分析投诉数据，识别频繁出现的问题模式，找出根本原因并推动系统性改进，从而减少同类投诉的反复发生。</p><div class="highlight">从解决个案到系统改善：找到投诉根因，推动流程优化，减少同类问题。</div><p>AI对投诉数据进行多维分析：按产品线统计投诉热点、按时间维度发现投诉趋势变化、按区域识别服务差异。基于这些分析，AI生成改善建议报告，推动产品改进和服务优化。</p><ul><li>根因分析：从表面问题深入分析根本原因</li><li>趋势监控：跟踪各类投诉的数量变化趋势</li><li>热点识别：发现高频投诉的产品或环节</li><li>改善推动：生成改善建议并追踪改进效果</li></ul>',quiz:[{q:'客诉管理从"个案处理"升级到"系统性改善"的关键转变是什么？',o:['处理更多的投诉工单就是系统性改善','通过分析投诉数据找到反复出现的根本原因并推动流程或产品改进减少同类问题','系统性改善意味着用AI自动回复所有投诉','只要投诉数量下降就说明实现了系统性改善'],a:1},{q:'AI对投诉数据进行多维分析（按产品线、时间、区域）的目的是什么？',o:['多维分析只是让报表更美观对改善没有实际帮助','发现投诉热点、趋势变化和区域差异，为产品改进和服务优化提供精准的数据支撑','多维分析会导致信息过载不如只看总量变化','分析结果只供高层管理者查看一线员工不需要了解'],a:1}]},
+{id:'c12_9',title:'机械租赁（一）',tools:['AI表格'],content:'<p>机械租赁管理系统覆盖设备台账、租赁合同和调度管理三大模块。通过AI表格搭建的系统能精确管理每台租赁设备的位置和状态，管理合同条款和费用，智能调度设备以提高利用率。</p><div class="highlight">三大核心模块：设备台账+租赁合同管理+智能调度。</div><p>设备台账管理每台机械的基本信息和实时状态；合同管理记录每笔租赁的客户信息、起止日期、费用条款和付款状态；调度模块根据设备可用性和地理位置智能分配设备。</p><ul><li>设备台账：设备型号、当前位置、运行状态、维保记录</li><li>合同管理：客户信息、租赁期限、费用条款、付款追踪</li><li>调度管理：设备可用性查询和智能调度分配</li></ul>',quiz:[{q:'机械租赁管理中智能调度的核心决策依据是什么？',o:['按照设备编号顺序依次分配给客户','综合考虑设备的可用状态和地理位置进行最优化分配以提高利用率','由管理者凭经验手动决定哪台设备出租给哪个客户','只考虑设备的新旧程度优先出租最新的设备'],a:1},{q:'租赁合同管理模块中付款追踪功能的核心价值是什么？',o:['只是记录收款金额用于会计记账','实时掌握每笔租赁的付款状态及时跟进逾期款项减少资金风险','付款追踪只需要在合同到期后进行一次核对','系统会自动向客户催款不需要人工介入'],a:1}]},
+{id:'c12_10',title:'机械租赁（二）',tools:['AI表格'],content:'<p>机械租赁的进阶管理聚焦于利用率分析和经营效益优化。AI自动计算每台设备的利用率、租赁收益和维护成本，帮助企业做出设备投资和淘汰的科学决策。</p><div class="highlight">数据驱动经营决策：设备利用率+收益分析+成本核算+投资回报评估。</div><p>系统分析维度包括：单台设备利用率（实际出租天数/可出租天数）、设备收益率（租赁收入/设备成本）、维护成本占比（维护费用/租赁收入）。AI基于这些数据给出设备采购和淘汰建议。</p><ul><li>利用率分析：每台设备的出租率和空闲时段分析</li><li>收益分析：设备租赁收入和投资回报率计算</li><li>成本核算：维护保养和运输等运营成本分析</li><li>投资建议：AI推荐应该增购、保留还是淘汰的设备</li></ul>',quiz:[{q:'设备利用率分析中"维护成本占比"（维护费用/租赁收入）这一指标反映什么？',o:['设备的购买价格是否合理','设备的运营经济性，占比过高说明维护成本侵蚀了租赁利润需要评估是否值得继续运营','维护成本占比越高说明设备质量越好维护越到位','该指标只适用于年度财务报告日常运营不需要关注'],a:1},{q:'AI基于利用率和收益率数据给出的"增购、保留或淘汰"建议，管理者应该如何看待？',o:['AI建议可以直接执行无需人工复核','作为数据驱动的参考建议结合市场判断和实际业务需求做出最终决策','AI建议只是理论计算与实际经营脱节不值得参考','只有当AI建议与管理者直觉一致时才有参考价值'],a:1}]}
+]},
+{id:'m13',level:'中级',name:'营销专题',color:'#fd79a8',courses:[
+{id:'c13_1',title:'AI视觉营销',tools:['AI表格'],content:'<p>AI视觉营销将产品图片作为起点，利用AI自动生成适配多个平台的营销内容。从一张产品图出发，AI可以自动拆解产品卖点、生成不同风格的文案、适配不同平台的尺寸和语气，实现全域营销内容的快速生产。</p><div class="highlight">核心流程：产品图→AI拆解卖点→多平台文案生成→全域内容分发。</div><p>传统方式下，为一款产品撰写小红书、微信公众号、淘宝详情页等多平台的内容需要多人多天的工作量。AI视觉营销将这个过程压缩到几分钟：AI分析产品图片的特征和卖点，根据不同平台的用户特点和内容风格自动生成适配的营销文案。</p><ul><li>卖点提取：AI分析产品图片自动提取核心卖点</li><li>多平台适配：同一产品自动生成不同平台的文案风格</li><li>图文配合：根据文案建议配图方案和排版</li><li>批量生产：多款产品的营销内容批量生成</li></ul><p>这对于产品线丰富的电商企业尤其有价值，能将营销内容的生产效率提升数十倍。</p>',quiz:[{q:'AI视觉营销将传统多平台内容制作效率提升数十倍的关键在于什么？',o:['AI只是加速了文案的打字速度但流程与传统方式相同','AI能从产品图片自动提取卖点并根据不同平台的用户特点和风格自动生成适配的营销文案','AI视觉营销只生成通用文案需要人工为每个平台单独修改','AI只能处理文案部分图片和排版仍需要设计师完成'],a:1},{q:'AI视觉营销中"多平台适配"的含义是什么？',o:['将完全相同的内容复制到所有平台发布','根据小红书、微信公众号、淘宝等不同平台的用户特点和内容风格自动调整文案语气和呈现方式','多平台适配只是调整图片尺寸文案内容完全相同','需要为每个平台单独拍摄不同的产品照片'],a:1},{q:'对于产品线丰富的电商企业，AI视觉营销最核心的价值是什么？',o:['减少产品拍摄的成本','实现多款产品营销内容的批量生产大幅降低人工成本和时间投入','提高产品的物流配送速度','自动调整产品的定价策略'],a:1}]},
+{id:'c13_2',title:'AI分析评论',tools:['AI表格'],content:'<p>利用AI表格对用户评论进行自动化分析，从海量评论中挖掘客户真实需求、产品改进方向和竞争机会。AI字段自动对每条评论进行情感分析、关键词提取和需求分类，将非结构化的评论转化为可行动的商业洞察。</p><div class="highlight">核心价值：从海量评论中挖掘客户真实需求和产品改进方向。</div><p>分析维度包括：情感倾向（正面/中性/负面）、关注维度（质量/价格/服务/物流）、具体诉求（产品功能改进建议）、竞品对比（用户提及的竞品优劣势）。这些洞察为产品迭代和营销策略提供数据支撑。</p><ul><li>情感分析：自动识别评论的情感倾向和满意度</li><li>关键词提取：提取评论中的高频关键词和话题</li><li>需求挖掘：从反馈中发现未被满足的客户需求</li><li>趋势追踪：跟踪各维度满意度的变化趋势</li></ul><p>实际应用：某品牌通过AI分析发现大量评论提到"包装容易破损"，据此改进包装设计后相关差评减少80%。</p>',quiz:[{q:'AI评论分析将"非结构化评论"转化为"可行动洞察"的过程包含哪些关键步骤？',o:['只是统计好评和差评的数量比例','对每条评论进行情感分析、关键词提取和需求分类形成多维度的商业洞察','只提取评论中的产品名称用于搜索引擎优化','将所有负面评论标记为垃圾信息自动隐藏'],a:1},{q:'某品牌通过AI分析发现大量评论提到"包装容易破损"后改进包装设计使差评减少80%，这个案例说明了什么？',o:['AI评论分析只适用于包装相关的改进','从用户评论中挖掘的具体需求可以直接指导产品改进形成从数据到行动的闭环','评论分析的结果需要经过至少一年的验证才能用于决策','这种改进效果只是巧合不能推广到其他场景'],a:1}]}
+]},
+{id:'m14',level:'中级',name:'财务专题',color:'#ffeaa7',courses:[
+{id:'c14_1',title:'库存管理（一）',tools:['AI表格'],content:'<p>AI驱动的库存管理系统实现库存数据的实时监控和智能预警。系统自动追踪每个SKU的库存数量、出入库记录和库存变化趋势，当库存低于安全线或高于上限时自动发出预警通知。</p><div class="highlight">核心功能：实时库存监控+出入库自动记录+低库存和高库存智能预警。</div><p>系统支持多仓库管理，可以查看每个仓库和每个SKU的实时库存量。出入库通过扫码或手机录入自动更新库存数据。AI分析库存变化趋势，预测未来库存走向。</p><ul><li>实时监控：每个SKU的当前库存量实时展示</li><li>出入库管理：扫码或手动录入，自动更新库存</li><li>预警机制：低于安全库存自动提醒补货</li><li>多仓管理：支持多个仓库的统一库存管理</li></ul>',quiz:[{q:'AI库存管理中"安全库存"与"实际库存"的关系是什么？',o:['安全库存就是仓库能存放的最大数量','实际库存低于安全库存线时触发补货预警，安全库存是防止缺货的缓冲量','安全库存越高越好因为不会出现缺货','安全库存只是理论概念实际管理中不需要设置'],a:1},{q:'多仓库库存管理中，AI实时监控每个SKU库存量的核心价值是什么？',o:['只是在系统中展示库存数字方便查看','及时发现库存异常（过低或过高）并触发相应的补货或调拨策略','实时监控会增加系统负担不如定期盘点更准确','每个仓库独立管理即可不需要统一监控'],a:1}]},
+{id:'c14_2',title:'库存管理（二）',tools:['AI表格'],content:'<p>库存管理进阶功能聚焦于安全库存计算和库存优化。AI根据历史销售数据、供应商交货周期和需求波动情况，自动计算每个SKU的最优安全库存量，在保证不断货的前提下尽可能降低库存成本。</p><div class="highlight">安全库存的核心意义：既不断货影响业务，又不积压过多资金。</div><p>安全库存的计算需要平衡两个风险：库存太少可能导致缺货失去订单，库存太多会占用资金和仓储空间。AI综合分析销售速度、波动幅度和补货周期，为每个SKU推荐最优的库存策略。</p><ul><li>需求预测：基于历史数据预测未来销量</li><li>安全库存计算：综合考虑需求波动和补货周期</li><li>补货建议：自动生成补货计划和采购建议</li><li>库存成本分析：库存资金占用和仓储成本统计</li></ul>',quiz:[{q:'AI计算最优安全库存需要平衡的两个核心风险是什么？',o:['供应商交货速度和产品保质期','库存太少导致缺货丢失订单与库存太多占用资金和仓储空间','产品价格波动和汇率变化','员工数量不足和仓库面积有限'],a:1},{q:'AI安全库存计算需要综合分析哪些数据来做出推荐？',o:['只需要看当前库存数量即可计算','历史销售数据、需求波动幅度和供应商交货周期等多维度数据','只看产品的采购单价来决定库存量','根据仓库的空余面积来计算库存上限'],a:1}]},
+{id:'c14_3',title:'发票识别录入',tools:['AI表格'],content:'<p>利用AI OCR技术自动识别和录入发票信息。财务人员只需用手机拍照或上传发票图片，AI自动识别发票上的关键信息（发票号码、金额、日期、开票方等）并填入对应字段，大幅减少手动录入的工作量和错误率。</p><div class="highlight">工作方式：拍照/上传→AI OCR识别→关键信息自动提取→智能填入表格字段。</div><p>系统支持增值税专用发票、普通发票、电子发票等多种发票类型的识别。识别准确率达95%以上，且AI会自动进行发票真伪初步校验和重复发票检测。</p><ul><li>多类型支持：增值税专票、普票、电子发票、收据</li><li>信息提取：发票号、金额、税额、日期、开票方</li><li>真伪校验：AI初步验证发票信息的合理性</li><li>重复检测：自动检测是否有重复录入的发票</li></ul>',quiz:[{q:'AI发票识别除了提取关键信息外还提供了哪些增值功能？',o:['AI只能识别发票上的金额其他信息需要手动输入','在提取信息的基础上还能进行真伪初步校验和重复发票检测','AI识别后需要人工将每个字段手动复制到表格中','发票识别只支持纸质发票不支持电子发票'],a:1},{q:'AI发票OCR识别准确率达95%以上但仍需要人工确认的原因是什么？',o:['95%的准确率太低不值得使用','财务数据的准确性要求极高，即使小比例的识别错误也可能导致财务问题','人工确认只是走流程AI识别结果已经完全可靠','只有金额字段需要确认其他字段无所谓'],a:1}]},
+{id:'c14_4',title:'AI费控预警',tools:['AI表格'],content:'<p>AI费控预警系统自动监控各部门和项目的费用支出情况，当实际支出接近或超过预算时自动标记并发送预警通知。这帮助企业在财务风险出现之前及时发现和干预，避免预算失控。</p><div class="highlight">核心功能：预算设置→实时监控→超预算自动标记→预警通知→审核控制。</div><p>系统将每笔费用自动归类到对应的预算科目和部门，实时计算已用预算和剩余额度。当使用率达到80%时黄色预警，达到100%时红色预警，超预算的申请需要额外审批。</p><ul><li>预算设置：按部门、项目、科目设置年度/季度预算</li><li>实时监控：已用金额和剩余额度实时展示</li><li>分级预警：80%黄色预警，100%红色预警</li><li>审批控制：超预算费用需额外审批流程</li></ul>',quiz:[{q:'AI费控预警系统采用80%黄色预警和100%红色预警的分级机制有什么管理意义？',o:['分级预警只是颜色区分对管理流程没有影响','80%预警提供提前干预的时间窗口，100%预警要求启动额外审批流程，实现渐进式风险管控','黄色预警可以忽略只有红色预警才需要关注','预警分级越多越好应该设置5个以上预警级别'],a:0},{q:'费控预警系统中"超预算费用需额外审批"这一控制机制的设计意图是什么？',o:['所有超预算的费用都应该被直接拒绝','在不完全阻止业务运转的前提下增加管控力度确保超预算支出经过充分评估和审批','额外审批只是形式上的流程不影响最终结果','超预算审批应该由AI自动决定是否通过'],a:1}]},
+{id:'c14_5',title:'经营看板',tools:['AI表格'],content:'<p>AI经营看板让管理者用自然语言即可生成实时的经营分析图表。无需学习数据分析工具，只需说"帮我看一下本月各门店的销售额对比"，AI自动查询数据并生成直观的可视化看板。</p><div class="highlight">最大优势：自然语言驱动，零门槛生成专业的经营分析可视化看板。</div><p>系统支持多种图表类型：柱状图、折线图、饼图、漏斗图、地图等。管理者可以通过自然语言追问来切换分析维度、调整时间范围或深入某个数据点。所有图表可保存为固定看板供日常查看。</p><ul><li>自然语言生成：用日常用语描述需求即可生成图表</li><li>多种图表：柱状、折线、饼图、漏斗等自动选择</li><li>交互探索：追问深入分析，切换维度和时间范围</li><li>看板保存：将常用图表固定为日常经营看板</li></ul>',quiz:[{q:'AI经营看板"自然语言驱动"的核心优势体现在什么方面？',o:['用户仍需要学习图表配置工具但可以用语音代替鼠标操作','管理者无需掌握SQL或报表工具用日常用语即可生成专业的数据可视化分析','自然语言只能查询预设的固定报表不支持自定义分析','自然语言生成的图表质量不如手动配置需要二次修改'],a:1},{q:'管理者使用经营看板时"通过自然语言追问深入分析"的能力意味着什么？',o:['每次追问都会重新生成一个全新的不相关图表','可以在初始查询的基础上切换分析维度、调整时间范围或聚焦特定数据点实现交互式探索','追问只是重复显示相同的数据图表','需要先退出当前图表再输入新的查询才能分析其他维度'],a:1}]}
+]},
+{id:'m15',level:'中级',name:'龙虾专题',color:'#d63031',courses:[
+{id:'c15_1',title:'安全权限可控',tools:[],content:'<p>AI系统部署的安全底线是"权限可控、数据隔离、操作可追溯"。在企业中部署任何AI应用之前，必须先建立完善的安全管控体系，确保AI只能在授权范围内运行，不会越权访问或泄露敏感数据。</p><div class="highlight">安全三原则：权限最小化+数据隔离+操作可追溯。</div><p>权限最小化意味着AI应用只授予完成任务所必需的最少权限；数据隔离确保不同业务、不同客户的数据不会交叉访问；操作可追溯要求AI的每次操作都有完整的日志记录，方便事后审计。</p><ul><li>权限最小化：只授予AI完成任务所需的最少权限</li><li>数据隔离：不同租户和业务的数据严格隔离</li><li>操作审计：AI的每次操作都记录日志可追溯</li><li>安全评估：上线前进行安全风险评估和测试</li></ul>',quiz:[{q:'AI安全三原则中"操作可追溯"的具体含义和实际价值是什么？',o:['操作追溯只记录用户的登录时间不涉及AI的具体操作','AI的每次操作都有完整的日志记录，方便事后审计和问题排查','只要设置了权限就不需要操作审计日志','操作追溯会影响AI的运行性能应该在生产环境中关闭'],a:1},{q:'"权限最小化"原则在AI部署中的实践意义是什么？',o:['AI应用不需要任何权限就能正常运行','只授予AI完成特定任务所必需的最少权限，防止越权访问敏感数据或执行非授权操作','权限最小化会限制AI的功能发挥应该给予最大权限','权限设置只在部署初期重要后续可以逐步放开所有限制'],a:1}]},
+{id:'c15_2',title:'钉钉权限准备',tools:[],content:'<p>在钉钉平台上部署AI应用前，需要正确配置各项权限。这包括应用的可见范围（哪些人可以使用）、数据访问权限（AI能读取哪些数据）、操作权限（AI能执行哪些动作），确保AI在正确的权限范围内运行。</p><div class="highlight">权限配置的核心目的：确保AI在正确的权限范围内运行，既不缺权也不越权。</div><p>钉钉的权限体系支持精细化管控：可以按组织架构设置应用可见范围、按角色设置数据访问级别、按场景设置操作权限。配置前需要与业务部门确认需求，避免权限过大或过小。</p><ul><li>应用可见范围：设定哪些部门和人员可以使用AI应用</li><li>数据读取权限：设定AI能访问哪些数据源和字段</li><li>操作权限：设定AI能执行的操作类型和范围</li><li>审批流程：敏感操作需要审批确认</li></ul>',quiz:[{q:'钉钉权限配置中"既不缺权也不越权"的含义是什么？',o:['给AI应用最大权限然后逐步收紧','权限设置既要保证AI能正常完成工作又不能超出业务需要的范围','缺权和越权是不可避免的只要功能正常就可以','权限配置由系统自动完成无需管理员手动设置'],a:0},{q:'配置AI应用的数据访问权限前为什么需要与业务部门确认需求？',o:['只是走流程的行政要求对权限设置没有实际影响','了解实际业务需求才能设置合理的权限范围避免权限过大带来安全风险或权限过小影响功能','业务部门负责所有权限设置IT部门不需要参与','权限配置完成后不能修改所以需要提前确认'],a:1}]},
+{id:'c15_3',title:'云端部署教程',tools:[],content:'<p>本节提供AI应用的云端部署手把手教程，涵盖从环境准备到正式上线的完整流程。每个步骤都有详细的操作说明和注意事项，即使是没有运维经验的人也能按照教程完成部署。</p><div class="highlight">部署五步法：环境准备→配置参数→部署应用→功能测试→正式上线。</div><p>关键步骤说明：环境准备（确认云服务资源和网络配置）、配置参数（设置应用参数和连接信息）、部署应用（将应用部署到云端运行）、功能测试（全面测试每项功能确保正常）、正式上线（开放用户访问并监控运行状态）。</p><ul><li>环境准备：云服务资源确认、网络配置、安全策略</li><li>参数配置：应用参数、API密钥、连接地址设置</li><li>部署执行：按步骤将应用部署到云端</li><li>测试验证：功能测试、性能测试、安全测试</li><li>上线监控：开放访问、监控运行、处理异常</li></ul>',quiz:[{q:'云端部署五步法中为什么"功能测试"必须在"正式上线"之前完成？',o:['测试只是可选步骤如果时间紧张可以跳过','未经充分测试就上线可能导致功能故障影响用户体验甚至造成数据安全问题','测试和上线的顺序可以互换先上线再测试也可以','功能测试只需要验证一个核心功能即可不需要全面测试'],a:1},{q:'部署过程中"参数配置"这一步骤中设置API密钥和连接地址的目的是什么？',o:['API密钥只是系统的标识符没有安全功能','建立应用与云端服务和外部系统之间的安全认证连接确保数据通信正常','参数配置完成后不需要保存系统会自动记住','API密钥可以公开分享方便其他系统直接访问'],a:1}]},
+{id:'c15_4',title:'机器人接入',tools:[],content:'<p>将AI智能体接入钉钉工作群后，团队成员可以在群聊中直接@机器人提问或下达指令，AI实时响应并执行任务。这种方式将AI融入日常工作流，让团队成员无需切换工具即可获得AI支持。</p><div class="highlight">接入后的能力：在群聊中实时问答、执行查询、触发流程、推送通知。</div><p>机器人接入配置包括：创建钉钉机器人、绑定DEAP智能体、设置群聊权限、配置主动推送规则。接入后机器人可以被动响应@提问，也可以主动推送预警和通知信息。</p><ul><li>被动响应：群成员@机器人提问，AI自动回答</li><li>主动推送：定时或事件触发推送通知信息</li><li>指令执行：通过自然语言下达查询和操作指令</li><li>权限控制：设置哪些群和哪些人可以与机器人交互</li></ul>',quiz:[{q:'AI机器人接入工作群后支持的两种交互模式分别适用于什么场景？',o:['被动响应和主动推送是同一种功能的不同名称','被动响应适合群成员按需提问获取信息，主动推送适合定时通知和事件预警','机器人只能被动响应@提问不支持任何主动推送','被动响应只能回答是或否的简单问题'],a:1},{q:'将AI机器人融入日常工作群而非独立使用的核心优势是什么？',o:['群聊中的机器人功能比独立使用时更强大','团队成员无需切换工具就能在日常工作场景中随时获取AI支持','机器人在群聊中的响应速度比独立使用更快','群聊机器人可以自动阅读所有历史消息不需要人工@'],a:1}]},
+{id:'c15_5',title:'AI盯舆情',tools:[],content:'<p>AI舆情监控系统自动从互联网上采集与企业相关的信息，利用AI进行情感分析和风险评估，在负面舆情扩散之前及时预警。这帮助企业从被动应对舆情危机转变为主动监控和管理品牌声誉。</p><div class="highlight">工作方式：AI自动采集→语义分析→情感判断→风险评估→及时预警。</div><p>系统持续监控社交媒体、新闻网站、论坛等多个渠道，当发现与企业相关的负面或敏感内容时，自动评估影响等级并通知公关团队。AI还能分析舆情趋势，帮助企业了解公众对品牌的整体印象变化。</p><ul><li>多渠道采集：社交媒体、新闻网站、论坛、问答平台</li><li>AI语义分析：理解内容含义，不是简单的关键词匹配</li><li>情感判断：自动识别正面、中性、负面情绪</li><li>分级预警：根据影响范围和严重程度分级预警</li></ul>',quiz:[{q:'AI舆情监控采用"语义分析"而非简单"关键词匹配"的核心原因是什么？',o:['语义分析和关键词匹配的效果完全相同只是技术实现不同','语义分析能理解内容的真实含义和情感倾向准确识别正面或负面信息减少误报漏报','语义分析速度更快但准确性不如关键词匹配','关键词匹配只适用于英文语义分析只适用于中文'],a:1},{q:'舆情监控中"分级预警"机制的设计意图是什么？',o:['所有舆情信息都应该以最高级别通知确保不遗漏','根据影响范围和严重程度分级处理让公关团队将精力集中在真正需要关注的事件上','分级预警只是系统界面上的颜色标记不影响实际处理流程','低级别预警可以永久忽略只有最高级别才需要处理'],a:1}]}
+]},
+{id:'m16',level:'中级',name:'AI进阶与管理者',color:'#a29bfe',courses:[
+{id:'c16_1',title:'AI组织诊断',tools:['AI听记'],content:'<p>AI组织诊断利用会议数据来发现组织运营中的瓶颈和改进机会。通过AI听记积累的大量会议记录，AI分析会议的频率、时长、参与度、讨论主题等数据，揭示组织协作中的深层问题。</p><div class="highlight">数据来源：会议数据分析——从会议频率、时长、讨论主题中发现组织瓶颈。</div><p>AI分析维度包括：部门间的会议协作网络（哪些部门频繁开会）、会议效率指标（平均时长、决策转化率）、热点话题跟踪（反复出现的问题是否被解决）。这些洞察帮助管理者从数据角度理解组织运行状态。</p><ul><li>协作分析：识别部门间的沟通频率和协作模式</li><li>效率诊断：分析会议时长、决策效率、待办跟进率</li><li>问题追踪：发现反复出现但未解决的组织问题</li><li>改善建议：AI基于数据生成组织改善建议</li></ul><p>对于中高层管理者来说，这是一个观察组织健康度的新视角——用数据说话，而非依赖主观感受。</p>',quiz:[{q:'AI组织诊断利用会议数据进行分析的独特价值是什么？',o:['会议数据只能反映会议时长对组织问题没有诊断价值','从会议频率、时长、讨论主题等多维数据中揭示组织协作中的深层瓶颈和模式','AI组织诊断可以替代所有传统的组织评估方法','会议数据分析只适用于评估个人绩效不适用于组织层面'],a:1},{q:'AI组织诊断发现某个问题在过去三个月的会议中反复被讨论但始终未被解决，这一洞察的管理意义是什么？',o:['重复讨论说明这个问题不重要可以忽略','揭示了组织中存在未被有效解决的顽固问题,管理者需要关注并推动解决','AI应该自动生成解决方案并执行','只要会议讨论了就说明问题正在被处理无需额外关注'],a:1},{q:'为什么说AI组织诊断为管理者提供了"用数据说话"的新视角？',o:['数据分析的结论与管理者的主观感受一定相同所以没有新价值','基于客观数据的分析可以发现主观感受容易忽略的模式和趋势帮助更全面地理解组织状态','数据分析只适合分析财务指标不适合分析组织协作','管理者应该完全依赖数据分析放弃所有主观判断'],a:1}]},
+{id:'c16_2',title:'AI人才洞察',tools:['AI听记'],content:'<p>AI人才洞察通过分析员工在会议中的表现数据（如发言频率、观点质量、协作态度），结合工作产出数据，构建客观全面的员工能力画像。这为人才选拔、培养和团队搭配提供数据支撑。</p><div class="highlight">核心价值：客观了解员工的能力特点和发展潜力，支撑科学的人才决策。</div><p>AI分析不是监控员工，而是帮助管理者更全面地了解每位员工的优势和发展空间。例如，某位员工在跨部门会议中表现出色的沟通协调能力，但在技术讨论中参与度较低——这为其职业发展方向提供了有价值的参考。</p><ul><li>能力画像：基于多维数据构建员工能力雷达图</li><li>潜力评估：识别高潜力人才和待培养方向</li><li>团队分析：分析团队能力结构的优势和短板</li><li>发展建议：为个人成长提供数据支撑的建议</li></ul><p>需要特别强调的是，AI人才洞察的目的是赋能而非监控。使用时应透明公开，让员工了解数据的用途，并将其定位为支持个人成长的工具。</p>',quiz:[{q:'AI人才洞察强调"赋能而非监控"的原则，在实际使用中应该如何体现？',o:['秘密收集和分析员工数据仅供管理者参考','向员工透明公开数据用途并将其定位为支持个人成长的工具','只分析管理层的数据不分析普通员工','数据分析结果直接与绩效考核挂钩'],a:1},{q:'AI人才洞察通过分析会议表现构建员工能力画像的独特价值是什么？',o:['会议表现只反映员工的发言数量不能体现能力','从跨部门沟通、技术讨论等多场景表现中发现员工的能力特点和发展潜力','能力画像可以完全替代传统的绩效评估体系','AI画像的准确度已经足够高不需要与其他评估数据结合'],a:1}]}
+]},
+{id:'m17',level:'中级',name:'AI落地最佳实践',color:'#55efc4',courses:[
+{id:'c17_1',title:'最佳实践1',tools:['理论'],content:'<p>本节通过制造业、零售业和教育行业的真实AI落地案例，展示AI在不同行业中的最佳实践方法论。每个案例都分析了业务痛点、AI解决方案、实施路径和实际效果，为学习者提供可借鉴的经验。</p><div class="highlight">最重要的是：理解方法论并结合自身实际情况，而不是照搬别人的方案。</div><p>制造业案例：某工厂通过AI视觉质检将缺陷检出率从85%提升到99%，同时质检人员从12人减少到3人。零售案例：某连锁店用AI表格搭建门店管理系统，库存周转率提升40%。教育案例：某学校部署悟空智能导览，接待效率提升5倍。</p><ul><li>制造业：AI质检、设备预测性维护、生产排程优化</li><li>零售业：库存管理、客户画像、智能补货</li><li>教育业：智能导学、行政自动化、数据驱动教学</li><li>共性方法论：找准痛点→小规模试点→验证效果→逐步推广</li></ul><p>AI落地成功的关键不在于技术多先进，而在于是否精准匹配了真实的业务需求。最成功的项目往往是解决了一个具体的、高频的业务痛点。</p>',quiz:[{q:'AI落地案例分析中"理解方法论并结合自身情况"比"照搬方案"更重要的原因是什么？',o:['所有企业的业务场景和痛点都是相同的照搬方案效率更高','不同企业的业务场景、数据基础和组织成熟度不同，需要因地制宜地调整策略','方法论只是理论框架没有实际指导价值','只要使用相同的AI技术就能获得相同的效果'],a:1},{q:'AI落地成功的关键因素是"精准匹配真实业务需求"，以下哪个案例最能体现这一原则？',o:['某企业部署了最先进的AI系统但没有明确的业务目标','某工厂通过AI视觉质检解决了缺陷检出率低这一具体高频痛点','某公司同时在所有部门推广AI追求全面覆盖','某团队选择了市场上最贵的AI解决方案'],a:1},{q:'AI落地的共性方法论中"小规模试点"这一步骤的意义是什么？',o:['试点只是为了向管理层展示AI效果争取更多预算','在可控范围内验证AI方案的有效性积累经验后再逐步推广降低全面推广的风险','试点意味着只在一个场景中使用不需要考虑扩展','试点阶段不需要评估效果只要系统正常运行即可'],a:1}]},
+{id:'c17_2',title:'最佳实践2',tools:['理论'],content:'<p>本节展示金融、医疗和物流行业的AI落地最佳实践。这三个行业对数据安全、准确性和合规性有极高要求，AI落地需要在技术创新与风控合规之间找到平衡点。</p><div class="highlight">成功关键：需求与AI能力的精准匹配，在创新与合规之间找到平衡。</div><p>金融案例：某银行用AI智能体搭建内部知识问答系统，员工查询制度规范的效率提升80%，同时确保回答的准确性和合规性。医疗案例：某医院用AI辅助病历分析，协助医生更快速地获取患者历史信息。物流案例：某物流公司用AI优化配送路线，配送效率提升30%。</p><ul><li>金融：智能客服、风控预警、制度合规问答</li><li>医疗：病历分析辅助、知识库检索、行政自动化</li><li>物流：路线优化、仓储管理、运单追踪</li><li>合规要点：数据安全、隐私保护、审计追溯、监管合规</li></ul><p>高合规行业AI落地的经验：先在低风险场景（如内部知识问答）试点，验证AI的可靠性和安全性后，再逐步向核心业务场景扩展。始终将合规和安全放在首位。</p>',quiz:[{q:'高合规行业（金融、医疗等）AI落地时"先在低风险场景试点"的策略背后的逻辑是什么？',o:['低风险场景的AI效果更好所以优先部署','在低风险场景中验证AI的可靠性和安全性，建立信任后再向核心业务扩展降低合规风险','高合规行业只能在内部知识问答场景使用AI','低风险试点只是为了积累数据量与安全性无关'],a:1},{q:'某银行用AI搭建内部知识问答系统同时确保了效率和合规性，这个案例说明了什么？',o:['AI在金融行业只能用于内部问答不能用于其他场景','在创新与合规之间找到平衡点是高合规行业AI落地成功的关键','金融行业的AI应用不需要考虑合规问题','知识问答是金融行业AI的唯一可行应用'],a:1}]}
+]}
+];
+const TOTAL_M=MODULES.length, TOTAL_C=MODULES.reduce((s,m)=>s+m.courses.length,0);
+// ============ STATE ============
+const progress=JSON.parse(localStorage.getItem('alw-prog')||'{}');
+const placed=JSON.parse(localStorage.getItem('alw-blk')||'[]');
+function saveProg(){localStorage.setItem('alw-prog',JSON.stringify(progress))}
+function saveBlk(){localStorage.setItem('alw-blk',JSON.stringify(placed))}
+function isDone(id){const m=MODULES.find(x=>x.id===id);return m&&m.courses.every(c=>progress[c.id])}
+function modProg(id){const m=MODULES.find(x=>x.id===id);if(!m)return{d:0,t:0};return{d:m.courses.filter(c=>progress[c.id]).length,t:m.courses.length}}
+
+// ============ TOOLS SYSTEM ============
+const TOOL_IMGS={
+hand:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAI3UlEQVR4nO3dsYljSxaA4TtLh7Eog4WHMlh49iD7mRNAW8vYHUBbG8TYCmBAGYiBTqApLgg1ykGbQ9/ZV4j/+/zDKeven3JqWQAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJjpy+wDwCM77Hf32WdgnuN5+IbysP4x+wAAwN9PAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAI8pY1aYf97j5z/+vL86b5j/G+lK1jbJr/8fPXMtPxPHyDmcYNAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQU+zDwBbHPa7+8z9ry/PM9ez0V9//rFp/sfPX7/tLPB3cwMAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAEDQ0+wDwEyvL89T93+M96VsHWPq/sv1NnU/zOQGAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAoKfZB6DtsN/dlwf2Md5nHwHgU9wAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQ9DT7ALDF68vzpvmP8f7bzlK0jjF1/+V62zR/elt/21ng0bgBAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAg6Gn2AYCuy/W2af70ti4zHc/jy9QDwAZuAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACHqafQDY4j8v/900//ryvGn+Y7wvj2wdYyk7nseX2WeAWdwAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQ5C1sHtphv7vP3P/68rxp/mO8LzOtY2yav1xvm+ZPb+sy0/E8fAPJcgMAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQt7BJO+x395n7v3/7uml+HWPT/OV62zR/eluXmY7n4RsGn+QGAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIG9pwwaH/e4+c/+///XPmeuX09u6lB3PwzeUh+UGAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIG9Zw0SH/e4+c/9ff/4xc/1yud6m7j+9rcsjO56Hbzif5gYAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgb0nDAzvsd/eZ+79/+7ppfh1jmelyvU3df3pbp+4/nod/QJgbAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAgrwFDWGH/e4+c//3b19nrl/WMabuv1xvm+ZPb+sy0/E8/EMemBsAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCvOUMfNphv7vP3P/929eZ65d1jKn7L9fbpvnT27rMdDwP/6CJ3AAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABDkLWZgmsN+d5+5//XledP8x3jfNL+Oscx0ud42zZ/e1k3zx/PwD5rIDQAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEHeYgYe1mG/u8/c//ryvGn+Y7xvml/H2DR/ud42zZ/e1k3zx/PwD5rIDQAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEHeYgayDvvdfeb+15fnTfMf433T/DrGpvkfP39tmj+eh3/QRG4AACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAI8hYzwCcd9rv77DM8suN5+AdN5AYAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAYPl/+h8OY8uWOomsyQAAAABJRU5ErkJggg==',
+pickaxe:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAKRElEQVR4nO3dMYpj2RWAYbXp1IkyBdZKlBkczORj8ARegcGJQjsYb6DBSYU1Se+jmGRWMHQiGB7ye9mrJchbMH3xXMT/ffnhvEIlvZ+b3MMBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD4f/kw+wEAvtb5dHzMfoZntmy7d0DY72Y/AADw2xMAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAILcBQ1Mcz4dHzP3//TzLzPXH5bl16H577/75jDTsu3eIU/MCQAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEHucga+2vl0fMzc/9PPv8xcf1iWXw/P7Pvvvpm6f9l276CJnAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABDkLmYIO5+Oj5n7f/r5l5nrD8vy6+GZfflym7r/X//829T9y7Z7hw1wAgAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJC7lCHsfDo+Rub/8cO/h/bfbmP32X/77Z8Oz+zLl7G/f7bRz+/zj5+G5pdt9w4b4AQAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAICgj7MfAOBZfflyOzyz2+25n58xTgAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAj6OPsBAPg6t9tt9iPwxJwAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQ9GH2AwDznE/Hx8z9L9fL0Px/fv/nwzO73W6HZ/b5x09T9y/b7h02wAkAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABB7lKGJ3Y+HR8z979cL0Pz67oNzS/3fWj+D3/8YWj+drsdntnnHz9N3b9su3fQRE4AACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIchczTHQ+HR8z979cL0Pz67oNzS/3fWj+9e39MNNf/vr3qfs///hp6v5l271DnpgTAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAgtzlDAPOp+Nj5v6X62Vofl23ofnlvg/Nv769D80zZtl274AwJwAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAS5C5q08+n4mLn/5XoZml/XbWh+ue9D869v74eZ3GcPX88JAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQe7S5qmdT8fHzP0v18vQ/LpuQ/PLfR+af317P8y0bLvfIJjECQAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEHu4maq8+n4mLn/5XoZml/XbWh+ue9D869v74eZlm33GwJPygkAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABB7vJmyPl0fMzc/3K9DM2v6zY0v9z3ofnXt/fDTMu2+w2AKCcAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAEuQs87nw6Pmbuf7lehubXdRuaX+770Pzr2/thpmXbfYeBr+IEAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIHeJP7nz6fiYuf/lehmaX9dtaH6570Pzr2/vh5mWbfcdBKZwAgAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJC7yCc7n46Pmftfrpeh+XXdhuaX+z40//r2fphp2XbfIeApOQEAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACDIXeaDzqfjY+b+l+tlaH5dt6H55b4Pzb++vR9mWrbddwBIcgIAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAEBQ/i708+n4mLn/5XoZml/XbWh+ue9D869v74eZlm3P/w8DfA0nAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABD39Xern0/Exc//L9TI0v67b0Pxy34fmX9/eDzMt2/70/4MAz8gJAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQR8PcS/Xy9D8um5D88t9H5p/fXs/zLRs+4epDwDAV3ECAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABA0MdD3LpuQ/PLfR+af317P8y0bPuHqQ8AwBROAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACHr6u+DPp+PjELZs+9N/hgD89pwAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACH/81/ATQXE+YgceF2AAAAAElFTkSuQmCC',
+axe:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAEACAYAAABccqhmAAADm0lEQVR4nO3doY0bQRSA4XXkCoKjg1ZwCnAJgYeDg1JFKglIAYcNzM/YsnRkC0gLSQWHBkxG//fx1Y5k69cjb3bbAAAAAAAAAAAAAAAAAAAAgP/NYYv78vnp7+wzrOx23/P/oZV9mH0AYB4BgDABgDABgDABgDABgDABgDABgDABgDABgDABgDABgDABgDABgDABgLBDfZ//5fI69P59f9tW9v3b89T3u09gLhMAhAkAhAkAhAkAhAkAhAkAhAkAhAkAhAkAhAkAhAkAhAkAhAkAhAkAhAkAhB1nH8A+/1zn09jz18fc3999AmNMABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABA2/T4Axvz++Tz7CCzMBABhAgBhAgBhAgBhAgBhAgBhAgBhAgBhAgBhAgBhAgBhAgBhAgBhAgBhAgBh07+tPvp9+FEvl9eh5/f9bel9/utj6uu3232f/h8sMwFAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABAmABA2PK72LPvExh1Po89b5+fESYACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACDtui1t9H/18Wvs+A9ZmAoAwAYAwAYAwAYAwAYAwAYAwAYAwAYAwAYAwAYAwAYAwAYAwAYAwAYAwAYCw5e8DmO3H17F9/qdPH8cO8PiTvk+BMSYACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACMvfBzB7n//XZWyfH0aYACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBMACBs+W/Dr77Pf7vvy/8GrMsEAGECAGECAGECAGECAGECAGECAGECAGECAGECAGECAGECAGECAGECAGECAGHH2QdYfZ8fVmYCgDABgDABgDABgDABgDABgDABgDABgDABgDABgDABgDABgDABgDABgDABgLDp9wGMmr3Pf7vvh6kHgAEmAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAgTAAibfh/A9TH3/fb5KTMBQJgAQJgAQJgAQJgAQJgAQJgAQJgAQJgAQJgAQJgAQJgAQJgAQJgAQJgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADA9r5/dMVS9RcGUxUAAAAASUVORK5CYII=',
+hammer:'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAgAAAAIACAYAAAD0eNT6AAAJ2ElEQVR4nO3dsY0jyxVAUa4wEdAjsGj8QBiKIpAjiwkog+8INMeQjA1jAhGwaHC7vWYIVA5bHygQ9xz/od7ODjkX5dTpBAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAADA7/jmx8aI5XJ+zd4BaFr3w9+wAX8bGQYA3pMAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABD0MXsB2v78939mrwBM8s9//H32CmluAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACPqYvQC8s3X9OTS/LH9MPZ/3tq6P2SvwxtwAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQ9DF7AShb159T34Nflu9D85ym/v/BCDcAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAEfcxeAPh9y/L9VLauj7f++Y2eP/rvp80NAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQR+zF4B3tix/DM2v68+/bJeiZfk+NL+uj6nnw0xuAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACPqYvQC8s3X9eSpb18fQ/LJ8/8t2ecfzYSY3AAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABH3MXoC2Hz9+zF6BiX79+jV7BchyAwAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQNC32Qvw3pbL+TV7B97X/XYdmt+2fWj+X//939A8c6374W/YADcAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAEfcxegPfmPe65lsv5NfP8++06NL9t+9D8+jhOM/n95525AQCAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIOhj9gJQtlzOr5nn32/Xoflt24fm18cxNP/59RyahzI3AAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABH2bvQC8s+Vyfs08/367Ds1v2z40vz6OofnPr+dppnU/fAeS5QYAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgb2GTtlzOr5nn32/Xoflt24fm18cxNP/59TzNtO6H7zD4TW4AACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAI8pY2b225nF8zz7/frkPz27YPza+PY2j+8+t5mmndD99BMIkbAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAgrzFzVTL5fyaef79dh2a37Z9aH59HEPzn1/P00zrfvgOgTflBgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCBveTNkuZxfM8+/365D89u2D82vj2No/vPreZpp3Q/fARDlBgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCBvgcctl/Nr5vn323Voftv2ofn1cQzNf349TzOt++EzDPwWNwAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAR5S/zNLZfza+b599t1aH7b9qH59XEMzX9+PU8zrfvhMwhM4QYAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgAQAAQQIAAIIEAAAECQAACBIAABAkAAAgSAAAQJAAAIAgb5FPtlzOr5nn32/Xoflt24fm18cxNP/59TzNtO6HzxDwltwAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQ5C3zQcvl/Jp5/v12HZrftn1ofn0cQ/OfX8/TTOt++AwASW4AACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAI+pi9QN39dh2a37Z9aH59HEPzn1/P00zrfnybugDAm3IDAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABA0MfsBeq2bR+aXx/H0Pzn1/M007of36YuABDlBgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCABAABBAgAAggQAAAQJAAAIEgAAECQAACBIAABAkAAAgCBvsQ9aLufXKWzdD79DAG/IDQAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAEECAACCBAAABAkAAAgSAAAQJAAAIEgAAECQAACAIAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACcftf/AXA34vD7FqDsAAAAAElFTkSuQmCC'
+};
+const TOOLS=[
+  {id:'hand', name:'拳头',icon:TOOL_IMGS.hand,desc:'基础工具',speed:1},
+  {id:'pickaxe',name:'镐子',icon:TOOL_IMGS.pickaxe,desc:'挖掘更快',speed:2,unlock:1},
+  {id:'axe',   name:'斧头',icon:TOOL_IMGS.axe,desc:'伐木利器',speed:2.5,unlock:3},
+  {id:'hammer',name:'锤子',icon:TOOL_IMGS.hammer,desc:'范围破坏',speed:1.5,unlock:5,aoe:true}
+];
+let curTool=0;
+function getUnlockedTools(){const n=MODULES.filter(m=>isDone(m.id)).length;return TOOLS.filter(t=>!t.unlock||n>=t.unlock)}
+function setupToolHUD(){
+  const el=document.getElementById('tool-hud');
+  const tools=getUnlockedTools();
+  const t=tools[Math.min(curTool,tools.length-1)];
+  el.innerHTML=`<div class="tool-card active"><img class="tool-icon" src="${t.icon}" /><div class="tool-name">${t.name}</div><div class="tool-key">Q 切换</div></div>`;
+  // Update tool near crosshair
+  const ti=document.getElementById('tool-icon');
+  if(ti)ti.src=t.icon;
+}
+function cycleTool(){const tools=getUnlockedTools();curTool=(curTool+1)%tools.length;setupToolHUD();showToast('切换工具: '+tools[curTool].name)}
+function getCurTool(){const tools=getUnlockedTools();return tools[Math.min(curTool,tools.length-1)]}
+
+// ============ ACHIEVEMENTS ============
+const ACHV=[
+  {id:'first_break',  icon:'\u26cf',  title:'初次破坏',  desc:'破坏第一个方块',check:s=>s.broken>=1},
+  {id:'first_place',  icon:'\ud83e\uddf1',title:'初次建造',  desc:'放置第一个方块',check:s=>s.placed>=1},
+  {id:'builder_10',   icon:'\ud83c\udfd7', title:'小小建筑师',desc:'放置10个方块',check:s=>s.placed>=10},
+  {id:'builder_50',   icon:'\ud83c\udfe0', title:'建造达人',  desc:'放置50个方块',check:s=>s.placed>=50},
+  {id:'destroyer_30', icon:'\ud83d\udca5', title:'爆破专家',  desc:'破坏30个方块',check:s=>s.broken>=30},
+  {id:'learner_1',    icon:'\ud83d\udcda', title:'求知者',    desc:'解锁第1个区域',check:s=>s.unlocked>=1},
+  {id:'learner_5',    icon:'\ud83c\udf93', title:'学者',     desc:'解锁5个区域', check:s=>s.unlocked>=5},
+  {id:'learner_all',  icon:'\ud83d\udc51', title:'全知者',    desc:'解锁全部区域',check:s=>s.unlocked>=17},
+  {id:'tool_unlock',  icon:'\ud83d\udd28', title:'工具达人',  desc:'解锁全部工具',check:s=>s.unlocked>=5},
+  {id:'explorer',     icon:'\ud83e\udded', title:'探险家',    desc:'到访5个不同区域',check:s=>s.visited>=5}
+];
+const achvState=JSON.parse(localStorage.getItem('alw-achv')||'{}');
+const achvStats={broken:0,placed:0,unlocked:0,visited:0,visitedSet:new Set()};
+function saveAchv(){localStorage.setItem('alw-achv',JSON.stringify(achvState))}
+function initAchvStats(){
+  achvStats.placed=placed.length;
+  achvStats.unlocked=MODULES.filter(m=>isDone(m.id)).length;
+  Object.keys(achvState).forEach(k=>{if(achvState[k])achvStats[k]=999});
+}
+function checkAchv(){
+  achvStats.unlocked=MODULES.filter(m=>isDone(m.id)).length;
+  ACHV.forEach(a=>{
+    if(achvState[a.id])return;
+    if(a.check(achvStats)){achvState[a.id]=true;saveAchv();showAchvToast(a);setupAchvPanel()}
+  });
+}
+function showAchvToast(a){
+  let el=document.querySelector('.achv-toast');
+  if(!el){el=document.createElement('div');el.className='achv-toast';document.body.appendChild(el)}
+  el.innerHTML=`<span class="achv-icon">${a.icon}</span><div class="achv-title">${a.title}</div><div class="achv-desc">${a.desc}</div>`;
+  el.classList.add('show');
+  clearTimeout(showAchvToast._t);showAchvToast._t=setTimeout(()=>el.classList.remove('show'),3000);
+}
+function setupAchvPanel(){
+  const el=document.getElementById('achv-panel');
+  el.innerHTML=ACHV.map(a=>`<span class="achv-badge${achvState[a.id]?' earned':''}" title="${a.title}: ${a.desc}">${a.icon}</span>`).join('');
+}
+
+// ============ UI STATE (prevents pointer lock conflicts) ============
+let uiOpen = false; // true when any overlay is visible
+function lockUI(){uiOpen=true;document.exitPointerLock();document.getElementById('crosshair').style.display='none';document.getElementById('tool-icon').style.display='none'}
+function unlockUI(){uiOpen=false;document.getElementById('crosshair').style.display='block';document.getElementById('tool-icon').style.display='block'}
+
+function updateStats(){
+  const cm=MODULES.filter(m=>isDone(m.id)).length;
+  const cc=Object.keys(progress).filter(k=>progress[k]).length;
+  document.getElementById('s-mod').textContent=cm+'/'+TOTAL_M;
+  document.getElementById('s-crs').textContent=cc+'/'+TOTAL_C;
+  document.getElementById('s-rgn').textContent=cm+'/'+TOTAL_M;
+}
+
+// ============ NOISE ============
+function hash2(x,y){let n=x*374761393+y*668265263;n=(n^(n>>13))*1274126177;return(n^(n>>16))/2147483648}
+function noise2(x,y){const ix=Math.floor(x),iy=Math.floor(y),fx=x-ix,fy=y-iy,sx=fx*fx*(3-2*fx),sy=fy*fy*(3-2*fy),a=hash2(ix,iy),b=hash2(ix+1,iy),c=hash2(ix,iy+1),d=hash2(ix+1,iy+1);return a+(b-a)*sx+(c-a)*sy+(d-a-c+a-b+a)*sx*sy}
+function fbm(x,y){return noise2(x,y)*.5+noise2(x*2,y*2)*.25+noise2(x*4,y*4)*.125}
+
+// ============ REGIONS ============
+const REGIONS=MODULES.map((m,i)=>{
+  const col=i%5, row=Math.floor(i/5);
+  return {id:m.id, module:m, cx:col*32-64, cz:row*32-16, radius:13, biome:BIOMES[BIOME_MAP[m.id]]};
+});
+function getRegion(bx,bz){for(const r of REGIONS){const dx=bx-r.cx,dz=bz-r.cz;if(dx*dx+dz*dz<r.radius*r.radius)return r}return null}
+function canBuildAt(bx,bz){for(const r of REGIONS){if(!isDone(r.id))continue;const dx=bx-r.cx,dz=bz-r.cz;const expandR=r.radius*1.5;if(dx*dx+dz*dz<expandR*expandR)return r}return null}
+function getBiomeAt(bx,bz){const r=getRegion(bx,bz);return r?r.biome:BIOMES.forest}
+
+// ============ THREE.JS ============
+let scene,camera,renderer,clock;
+let player={x:0,y:30,z:0,vy:0,grounded:false};
+let yaw=0,pitch=0,keys={};
+const B=2; // block size
+let terrainH=new Map();
+let blockMap=new Map();
+let terrainMeshes=[]; // track terrain InstancedMeshes for rebuild
+let cpMeshes=[];
+let selectedSlot=0;
+let time=0;
+let interactCD=0;
+const matC={};
+function gMat(c){if(!matC[c])matC[c]=new THREE.MeshLambertMaterial({color:c});return matC[c]}
+const boxGeo=new THREE.BoxGeometry(B,B,B);
+function bKey(x,y,z){return x+','+y+','+z}
+
+function getH(bx,bz){
+  const s=0.04;
+  let h=fbm(bx*s,bz*s)*8+4;
+  // Add more dramatic terrain variation
+  h+=noise2(bx*0.02,bz*0.02)*6;
+  h+=noise2(bx*0.08,bz*0.08)*3;
+  // Biome-specific height modifications
+  for(const r of REGIONS){
+    const dx=bx-r.cx,dz=bz-r.cz,dist=Math.sqrt(dx*dx+dz*dz);
+    if(dist<r.radius){
+      const t=Math.max(0,1-dist/(r.radius*.6));
+      let baseH=6;
+      const bn=BIOME_MAP[r.id];
+      if(bn==='volcano') baseH=10+fbm(bx*0.08,bz*0.08)*6;
+      else if(bn==='ocean') baseH=2+noise2(bx*0.05,bz*0.05)*2;
+      else if(bn==='snow') baseH=8+fbm(bx*0.05,bz*0.05)*5;
+      else if(bn==='desert') baseH=5+Math.abs(fbm(bx*0.03,bz*0.03))*4;
+      else if(bn==='wetland') baseH=4+noise2(bx*0.06,bz*0.06)*2;
+      else if(bn==='forest') baseH=6+fbm(bx*0.06,bz*0.06)*4;
+      else if(bn==='cherry') baseH=6+noise2(bx*0.07,bz*0.07)*3;
+      else if(bn==='crystal') baseH=7+Math.abs(fbm(bx*0.1,bz*0.1))*5;
+      else if(bn==='savanna') baseH=5+noise2(bx*0.04,bz*0.04)*3;
+      h=h*(1-t)+baseH*t;
+    }
+  }
+  return Math.round(h);
+}
+
+function buildTerrain(){
+  const range=90;
+
+  for(let bx=-range;bx<range;bx++){
+    for(let bz=-range;bz<range;bz++){
+      const h=getH(bx,bz);
+      terrainH.set(bx+','+bz,h);
+      const wx=bx*B,wz=bz*B,wy=h*B;
+      const biome=getBiomeAt(bx,bz);
+      const topC=biome.ground, subC=biome.sub, deepC=biome.deep;
+
+      // Fill terrain column: top + layers below for hills
+      const depth=Math.min(h-2, 5); // fill up to 5 layers deep
+      for(let y=h;y>=h-depth;y--){
+        const c=y===h?topC:(y>=h-1?subC:deepC);
+        const k=bKey(wx,y*B,wz);
+        if(!blockMap.has(k)) blockMap.set(k,{t:'terrain',c});
+      }
+    }
+  }
+
+  rebuildTerrainMeshes();
+
+  // Water for ocean/wetland biomes
+  const waterGeo=new THREE.PlaneGeometry(range*B*2,range*B*2);
+  const waterMat=new THREE.MeshLambertMaterial({color:0x2196f3,transparent:true,opacity:0.5});
+  const water=new THREE.Mesh(waterGeo,waterMat);
+  water.rotation.x=-Math.PI/2;water.position.y=5*B;
+  scene.add(water);
+}
+
+function rebuildTerrainMeshes(){
+  // Remove old terrain meshes
+  terrainMeshes.forEach(m=>scene.remove(m));
+  terrainMeshes=[];
+  // Group terrain blocks by color
+  const groups={};
+  for(const [k,v] of blockMap){
+    if(v.t!=='terrain')continue;
+    const c=v.c;
+    if(!groups[c])groups[c]=[];
+    const [x,y,z]=k.split(',').map(Number);
+    groups[c].push({x,y,z});
+  }
+  const m4=new THREE.Matrix4();
+  for(const c in groups){
+    const arr=groups[c];
+    const inst=new THREE.InstancedMesh(boxGeo,gMat(parseInt(c)),arr.length);
+    arr.forEach((p,i)=>{m4.setPosition(p.x,p.y,p.z);inst.setMatrixAt(i,m4)});
+    inst.instanceMatrix.needsUpdate=true;
+    inst.castShadow=true;inst.receiveShadow=true;
+    scene.add(inst);
+    terrainMeshes.push(inst);
+  }
+}
+
+function buildVegetation(){
+  const grp=new THREE.Group();
+  const range=45;
+  function rng(i,s){return Math.abs(hash2(i*37+s,i*53-s))}
+
+  for(let i=0;i<200;i++){
+    const bx=Math.floor((rng(i,1)-.5)*range*2);
+    const bz=Math.floor((rng(i,2)-.5)*range*2);
+    const h=terrainH.get(bx+','+bz);
+    if(h===undefined)continue;
+    const region=getRegion(bx,bz);
+    if(region){const dx=bx-region.cx,dz=bz-region.cz;if(Math.sqrt(dx*dx+dz*dz)<region.radius*.4)continue}
+    const biome=getBiomeAt(bx,bz);
+    const wx=bx*B,wz=bz*B,baseY=(h+1)*B;
+
+    if(biome.tree){
+      // Random skip: only 40% of positions get trees (60% for sparse biomes)
+      if(rng(i,20)<(biome.sparse?0.7:0.5))continue;
+      if(h<4)continue;
+      const th=3+Math.floor(rng(i,4)*3);
+      for(let ty=0;ty<th;ty++){
+        const t=new THREE.Mesh(boxGeo,gMat(biome.treeTrunk));
+        t.position.set(wx,baseY+ty*B,wz);grp.add(t);
+      }
+      const topY=baseY+th*B;
+      const lr=biome.sparse?1:2;
+      for(let lx=-lr;lx<=lr;lx++)for(let ly=0;ly<=lr;ly++)for(let lz=-lr;lz<=lr;lz++){
+        if(lx*lx+ly*ly+lz*lz>lr*lr+1)continue;
+        const l=new THREE.Mesh(boxGeo,gMat(biome.treeLeaf));
+        l.position.set(wx+lx*B,topY+ly*B,wz+lz*B);grp.add(l);
+      }
+    } else if(biome.cactus && rng(i,5)>0.7){
+      if(h<4)continue;
+      const ch=2+Math.floor(rng(i,6)*3);
+      for(let cy=0;cy<ch;cy++){
+        const c=new THREE.Mesh(boxGeo,gMat(0x2e7d32));
+        c.position.set(wx,baseY+cy*B,wz);grp.add(c);
+      }
+      // Arm
+      if(ch>2&&rng(i,7)>0.5){
+        const arm=new THREE.Mesh(boxGeo,gMat(0x388e3c));
+        arm.position.set(wx+B,baseY+(ch-2)*B,wz);grp.add(arm);
+        const armUp=new THREE.Mesh(boxGeo,gMat(0x2e7d32));
+        armUp.position.set(wx+B,baseY+(ch-1)*B,wz);grp.add(armUp);
+      }
+    } else if(biome.crystal && rng(i,8)>0.65){
+      const ch=2+Math.floor(rng(i,9)*4);
+      const colors=[0xce93d8,0x7e57c2,0xffee58,0xe1bee7];
+      const cc=colors[Math.floor(rng(i,10)*colors.length)];
+      const crystalGeo=new THREE.BoxGeometry(B*0.6,B*ch,B*0.6);
+      const cm=new THREE.MeshStandardMaterial({color:cc,emissive:cc,emissiveIntensity:0.3,transparent:true,opacity:0.8});
+      const crystal=new THREE.Mesh(crystalGeo,cm);
+      crystal.position.set(wx,baseY+ch*B*0.5,wz);
+      crystal.rotation.y=rng(i,11)*Math.PI;
+      crystal.rotation.z=(rng(i,12)-.5)*0.3;
+      grp.add(crystal);
+    } else if(biome.coral && rng(i,13)>0.6 && h<=4){
+      const colors=[0xe91e63,0xff9800,0xffeb3b,0x00bcd4,0x9c27b0];
+      const cc2=colors[Math.floor(rng(i,14)*colors.length)];
+      for(let cy=0;cy<2+Math.floor(rng(i,15)*2);cy++){
+        const co=new THREE.Mesh(boxGeo,gMat(cc2));
+        co.position.set(wx,baseY+cy*B-B*2,wz);grp.add(co);
+      }
+    } else if(biome.lava && rng(i,16)>0.7){
+      // Lava pools
+      const lavaGeo=new THREE.PlaneGeometry(B*3,B*3);
+      const lavaMat=new THREE.MeshStandardMaterial({color:0xff6600,emissive:0xff3300,emissiveIntensity:0.8});
+      const lava=new THREE.Mesh(lavaGeo,lavaMat);
+      lava.rotation.x=-Math.PI/2;
+      lava.position.set(wx,baseY-B*0.5,wz);
+      grp.add(lava);
+    }
+  }
+  scene.add(grp);
+}
+
+function buildCheckpoints(){
+  cpMeshes=[];
+  REGIONS.forEach((r,i)=>{
+    const h=getH(r.cx,r.cz)||6;
+    const y=(h+2)*B;
+    const mat=new THREE.MeshStandardMaterial({color:new THREE.Color(r.module.color),emissive:new THREE.Color(r.module.color),emissiveIntensity:isDone(r.id)?0.7:0.35,metalness:0.3,roughness:0.4});
+    const mesh=new THREE.Mesh(new THREE.BoxGeometry(B*2,B*2,B*2),mat);
+    mesh.position.set(r.cx*B,y,r.cz*B);mesh.castShadow=true;
+    scene.add(mesh);
+
+    const light=new THREE.PointLight(r.module.color,0.6,25);
+    light.position.copy(mesh.position);scene.add(light);
+
+    // Biome name label ring
+    const ringC=isDone(r.id)?0x4ecca3:0x666666;
+    const ring=new THREE.Mesh(new THREE.TorusGeometry(B*1.8,.12,6,32),new THREE.MeshBasicMaterial({color:ringC}));
+    ring.position.copy(mesh.position);ring.rotation.x=Math.PI/2;scene.add(ring);
+
+    // Ground circle with biome tint
+    const gnd=new THREE.Mesh(new THREE.CircleGeometry(r.radius*B*.85,32),new THREE.MeshBasicMaterial({color:r.module.color,transparent:true,opacity:isDone(r.id)?0.12:0.04,side:THREE.DoubleSide}));
+    gnd.rotation.x=-Math.PI/2;gnd.position.set(r.cx*B,(getH(r.cx,r.cz)||6)*B+B+.1,r.cz*B);
+    scene.add(gnd);
+
+    // Boundary
+    const bnd=new THREE.Mesh(new THREE.RingGeometry(r.radius*B-.5,r.radius*B,48),new THREE.MeshBasicMaterial({color:ringC,transparent:true,opacity:isDone(r.id)?0.25:0.08,side:THREE.DoubleSide}));
+    bnd.rotation.x=-Math.PI/2;bnd.position.copy(gnd.position);bnd.position.y+=.2;
+    scene.add(bnd);
+
+    cpMeshes.push({mesh,region:r,light,ring,bnd,gnd,baseY:y});
+  });
+}
+
+function loadPlaced(){
+  placed.forEach(b=>{
+    const mesh=new THREE.Mesh(boxGeo,gMat(b.c));
+    mesh.position.set(b.x,b.y,b.z);mesh.castShadow=true;
+    scene.add(mesh);
+    blockMap.set(bKey(b.x,b.y,b.z),{t:'placed',mesh});
+  });
+}
+
+// ============ PIXEL NPCs ============
+const NPC_TYPES=[
+  {name:'向导',emoji:'🧭',skin:0x4ecca3,hat:0x2e7d32,pants:0x1565c0,
+   greet:['你好呀，冒险家！','欢迎来到学习世界！','又见面了，朋友！'],
+   idle:['这片区域的知识非常有趣呢。','多探索，多学习，你会变得更强！','记得完成所有课程才能解锁区域哦。']},
+  {name:'矿工',emoji:'⛏',skin:0xffb74d,hat:0x795548,pants:0x5d4037,
+   greet:['嘿！来挖掘知识的宝藏吧！','又来了啊，准备好了吗？','看到你真高兴！'],
+   idle:['每完成一个模块，都能获得特殊方块。','用合适的工具挖掘效率更高哦。','解锁区域后就能自由建造了！']},
+  {name:'学者',emoji:'📚',skin:0xce93d8,hat:0x4a148c,pants:0x283593,
+   greet:['学海无涯，欢迎求知者。','知识就是力量，朋友。','很高兴遇到好学的你。'],
+   idle:['每门课程后面都有考核，要认真学哦。','理论和实操结合才能学得扎实。','不懂的地方可以反复学习。']},
+  {name:'工匠',emoji:'🔨',skin:0xff8a65,hat:0xbf360c,pants:0x4e342e,
+   greet:['欢迎来到我的工坊！','想学点建造技巧？','好久不见，手艺练得怎么样了？'],
+   idle:['发光方块和透明方块是特殊奖励哦。','Q键可以切换不同的工具。','完成更多模块就能解锁更多工具！']},
+  {name:'探险家',emoji:'🗺',skin:0x81c784,hat:0x33691e,pants:0x558b2f,
+   greet:['嘿，同行者！','这片大陆还有很多未知等着你！','准备好探索了吗？'],
+   idle:['每个区域都有独特的地形和方块。','试试在不同的生物群系建造吧。','完成成就可以获得额外奖励！']}
+];
+let npcMeshes=[];
+function buildNPCs(){
+  const smallBox=new THREE.BoxGeometry(B*0.4,B*0.4,B*0.4);
+  const bodyBox=new THREE.BoxGeometry(B*0.5,B*0.6,B*0.3);
+  const legBox=new THREE.BoxGeometry(B*0.2,B*0.5,B*0.25);
+  const armBox=new THREE.BoxGeometry(B*0.15,B*0.5,B*0.2);
+  const hatBox=new THREE.BoxGeometry(B*0.5,B*0.15,B*0.5);
+
+  REGIONS.forEach((r,i)=>{
+    const npcType=NPC_TYPES[i%NPC_TYPES.length];
+    const h=getH(r.cx+3,r.cz+3)||6;
+    const baseY=(h+1)*B;
+    const nx=(r.cx+3)*B, nz=(r.cz+3)*B;
+
+    const grp=new THREE.Group();
+    // Head
+    const head=new THREE.Mesh(smallBox,gMat(0xffccbc));
+    head.position.set(0,B*1.1,0);grp.add(head);
+    // Eyes
+    const eyeGeo=new THREE.BoxGeometry(B*0.06,B*0.06,B*0.05);
+    const eyeMat=gMat(0x111111);
+    const eyeL=new THREE.Mesh(eyeGeo,eyeMat);eyeL.position.set(-B*0.08,B*1.15,B*0.2);grp.add(eyeL);
+    const eyeR=new THREE.Mesh(eyeGeo,eyeMat);eyeR.position.set(B*0.08,B*1.15,B*0.2);grp.add(eyeR);
+    // Hat
+    const hat=new THREE.Mesh(hatBox,gMat(npcType.hat));
+    hat.position.set(0,B*1.38,0);grp.add(hat);
+    // Body
+    const body=new THREE.Mesh(bodyBox,gMat(npcType.skin));
+    body.position.set(0,B*0.6,0);grp.add(body);
+    // Legs
+    const legL=new THREE.Mesh(legBox,gMat(npcType.pants));
+    legL.position.set(-B*0.12,B*0.1,0);grp.add(legL);
+    const legR=new THREE.Mesh(legBox,gMat(npcType.pants));
+    legR.position.set(B*0.12,B*0.1,0);grp.add(legR);
+    // Arms
+    const armL=new THREE.Mesh(armBox,gMat(npcType.skin));
+    armL.position.set(-B*0.35,B*0.65,0);grp.add(armL);
+    const armR=new THREE.Mesh(armBox,gMat(npcType.skin));
+    armR.position.set(B*0.35,B*0.65,0);grp.add(armR);
+
+    grp.position.set(nx,baseY,nz);
+    // Face toward center of region
+    grp.lookAt(r.cx*B,baseY,r.cz*B);
+    scene.add(grp);
+    npcMeshes.push({grp,region:r,type:npcType,baseY,legL,legR,armL,armR});
+  });
+}
+function animNPCs(dt){
+  npcMeshes.forEach((npc,i)=>{
+    const t=time*1.5+i*2;
+    const dx=player.x-npc.grp.position.x, dz=player.z-npc.grp.position.z;
+    const dist=Math.sqrt(dx*dx+dz*dz);
+    if(dist<NPC_TALK_RANGE*1.5){
+      const targetY=Math.atan2(dx,dz);
+      let diff=targetY-npc.grp.rotation.y;
+      while(diff>Math.PI)diff-=Math.PI*2;while(diff<-Math.PI)diff+=Math.PI*2;
+      npc.grp.rotation.y+=diff*Math.min(1,dt*5);
+      npc.grp.position.y=npc.baseY+Math.sin(t*1.5)*0.3;
+    } else {
+      npc.grp.position.y=npc.baseY+Math.sin(t)*0.15;
+    }
+    npc.legL.rotation.x=Math.sin(t)*0.15;
+    npc.legR.rotation.x=-Math.sin(t)*0.15;
+    npc.armL.rotation.x=-Math.sin(t)*0.12;
+    npc.armR.rotation.x=Math.sin(t)*0.12;
+  });
+}
+
+// ============ NPC DIALOGUE SYSTEM ============
+const NPC_TALK_RANGE=10;
+let nearbyNPC=null, npcDialogOpen=false, npcDialogLines=[], npcDialogIdx=0, npcDialogTyping=false;
+
+function findNearbyNPC(){
+  let best=null,bestDist=Infinity;
+  for(const npc of npcMeshes){
+    const dx=player.x-npc.grp.position.x, dz=player.z-npc.grp.position.z;
+    const dist=Math.sqrt(dx*dx+dz*dz);
+    if(dist<NPC_TALK_RANGE&&dist<bestDist){best=npc;bestDist=dist}
+  }
+  return best;
+}
+
+function updateNPCPrompt(){
+  nearbyNPC=findNearbyNPC();
+  const prompt=document.getElementById('npc-prompt');
+  if(nearbyNPC&&!uiOpen&&!npcDialogOpen){
+    document.getElementById('np-name').textContent=nearbyNPC.type.name;
+    prompt.classList.add('show');
+  } else {
+    prompt.classList.remove('show');
+  }
+}
+
+function buildNPCDialogue(npc){
+  const r=npc.region, m=r.module, t=npc.type;
+  const done=isDone(m.id), p=modProg(m.id);
+  const lines=[];
+  lines.push(t.greet[Math.floor(Math.random()*t.greet.length)]);
+  lines.push(`这里是<span class="nd-highlight">${r.biome.name}</span>区域，对应的学习模块是<span class="nd-highlight">「${m.name}」</span>（${m.level}）。`);
+  if(done){
+    lines.push(`你已经完成了这个模块的全部 ${p.t} 门课程，太厉害了！🎉 这片区域已经完全解锁，你可以自由建造。`);
+    if(r.biome.specials&&r.biome.specials.length>0){
+      const names=r.biome.specials.map(s=>s.n).join('、');
+      lines.push(`作为奖励，你已经解锁了特殊方块：<span class="nd-highlight">${names}</span>，在快捷栏里试试吧！`);
+    }
+  } else if(p.d>0){
+    lines.push(`你已经完成了 ${p.d}/${p.t} 门课程，继续加油！还差 ${p.t-p.d} 门就能解锁这个区域了。`);
+    const next=m.courses.find(c=>!progress[c.id]);
+    if(next) lines.push(`推荐你接下来学习：<span class="nd-highlight">「${next.title}」</span>，靠近学习方块按E即可开始。`);
+  } else {
+    lines.push(`这个模块有 ${p.t} 门课程等你来学习。靠近那个发光的方块，按 E 就能开始！`);
+    lines.push(`第一课是<span class="nd-highlight">「${m.courses[0].title}」</span>，从这里开始吧！`);
+  }
+  lines.push(t.idle[Math.floor(Math.random()*t.idle.length)]);
+  return lines;
+}
+
+function openNPCDialog(npc){
+  if(npcDialogOpen||uiOpen)return;
+  npcDialogOpen=true;
+  npcDialogLines=buildNPCDialogue(npc);
+  npcDialogIdx=0;
+  const dlg=document.getElementById('npc-dialog');
+  document.getElementById('nd-avatar').textContent=npc.type.emoji;
+  document.getElementById('nd-avatar').style.background='rgba(255,183,77,.15)';
+  document.getElementById('nd-name').textContent=npc.type.name;
+  document.getElementById('nd-role').textContent=' · '+npc.region.biome.name+'区域';
+  dlg.classList.add('open');
+  document.getElementById('npc-prompt').classList.remove('show');
+  showNPCLine();
+}
+
+function showNPCLine(){
+  const body=document.getElementById('nd-body');
+  if(npcDialogIdx>=npcDialogLines.length){closeNPCDialog();return}
+  const line=npcDialogLines[npcDialogIdx];
+  body.innerHTML='';
+  npcDialogTyping=true;
+  const tmp=document.createElement('div');tmp.innerHTML=line;
+  const fullText=tmp.textContent;
+  const fullHTML=line;
+  let ci=0;
+  body.textContent='';
+  const tw=setInterval(()=>{
+    ci+=2;
+    if(ci>=fullText.length){clearInterval(tw);body.innerHTML=fullHTML;npcDialogTyping=false;updateNPCFooter();return}
+    body.textContent=fullText.substring(0,ci);
+  },25);
+  body._tw=tw;
+  updateNPCFooter();
+}
+
+function updateNPCFooter(){
+  const footer=document.getElementById('nd-footer');
+  const isLast=npcDialogIdx>=npcDialogLines.length-1;
+  const done=isDone(nearbyNPC?.region?.id);
+  let btns='';
+  if(npcDialogTyping){
+    btns=`<button class="nd-btn" onclick="skipNPCType()">跳过 ▸</button>`;
+  } else {
+    if(!isLast) btns+=`<button class="nd-btn" onclick="nextNPCLine()">继续 ▸</button>`;
+    if(!done&&nearbyNPC) btns+=`<button class="nd-btn nd-primary" onclick="npcGoLearn()">开始学习</button>`;
+    btns+=`<button class="nd-btn" onclick="closeNPCDialog()">${isLast?'告别':'关闭'}</button>`;
+  }
+  footer.innerHTML=btns;
+}
+
+function skipNPCType(){
+  const body=document.getElementById('nd-body');
+  if(body._tw)clearInterval(body._tw);
+  body.innerHTML=npcDialogLines[npcDialogIdx];
+  npcDialogTyping=false;
+  updateNPCFooter();
+}
+
+function nextNPCLine(){
+  npcDialogIdx++;
+  showNPCLine();
+}
+
+function npcGoLearn(){
+  closeNPCDialog();
+  if(nearbyNPC) openModule(nearbyNPC.region.id);
+}
+
+function closeNPCDialog(){
+  const body=document.getElementById('nd-body');
+  if(body._tw)clearInterval(body._tw);
+  npcDialogOpen=false;npcDialogTyping=false;
+  document.getElementById('npc-dialog').classList.remove('open');
+}
+
+function initScene(){
+  scene=new THREE.Scene();
+  scene.background=new THREE.Color(0x87ceeb);
+  scene.fog=new THREE.Fog(0x87ceeb,120,360);
+  camera=new THREE.PerspectiveCamera(70,innerWidth/innerHeight,.1,500);
+  renderer=new THREE.WebGLRenderer({antialias:true});
+  renderer.setSize(innerWidth,innerHeight);
+  renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+  renderer.shadowMap.enabled=true;
+  renderer.domElement.className='game-canvas';
+  document.body.prepend(renderer.domElement);
+
+  scene.add(new THREE.AmbientLight(0xffffff,0.5));
+  const sun=new THREE.DirectionalLight(0xfff5e1,0.8);
+  sun.position.set(50,80,30);sun.castShadow=true;
+  sun.shadow.mapSize.set(2048,2048);
+  sun.shadow.camera.left=-100;sun.shadow.camera.right=100;
+  sun.shadow.camera.top=100;sun.shadow.camera.bottom=-100;
+  scene.add(sun);
+  scene.add(new THREE.HemisphereLight(0x87ceeb,0x4caf50,0.3));
+  clock=new THREE.Clock();
+
+  buildTerrain();buildVegetation();buildCheckpoints();loadPlaced();buildNPCs();
+
+  const sh=getH(0,0)||6;player.y=(sh+3)*B;
+}
+
+// ============ PLAYER PHYSICS ============
+const PLAYER_H=3.4; // player height in world units (eye height)
+const PLAYER_R=0.6; // player radius in world units
+function collidesAt(px,py,pz){
+  const minX=Math.floor((px-PLAYER_R)/B)*B, maxX=Math.floor((px+PLAYER_R)/B)*B;
+  const minZ=Math.floor((pz-PLAYER_R)/B)*B, maxZ=Math.floor((pz+PLAYER_R)/B)*B;
+  const minY=Math.floor((py-PLAYER_H)/B)*B, maxY=Math.floor(py/B)*B;
+  for(let x=minX;x<=maxX;x+=B)for(let y=minY;y<=maxY;y+=B)for(let z=minZ;z<=maxZ;z+=B){
+    if(blockMap.has(bKey(x,y,z)))return true;
+  }
+  return false;
+}
+function updatePlayer(dt){
+  const spd=18,jump=12,grav=-30;
+  const dir=new THREE.Vector3();
+  if(keys['KeyW']||keys['ArrowUp'])dir.z-=1;
+  if(keys['KeyS']||keys['ArrowDown'])dir.z+=1;
+  if(keys['KeyA']||keys['ArrowLeft'])dir.x-=1;
+  if(keys['KeyD']||keys['ArrowRight'])dir.x+=1;
+  if(dir.length()>0)dir.normalize();
+  const sy=Math.sin(yaw),cy=Math.cos(yaw);
+  const mx=(dir.x*cy+dir.z*sy)*spd, mz=(-dir.x*sy+dir.z*cy)*spd;
+  player.vy+=grav*dt;
+  if(keys['Space']&&player.grounded){player.vy=jump;player.grounded=false}
+
+  const nx=player.x+mx*dt;
+  if(!collidesAt(nx,player.y,player.z)) player.x=nx;
+
+  const nz=player.z+mz*dt;
+  if(!collidesAt(player.x,player.y,nz)) player.z=nz;
+
+  const ny=player.y+player.vy*dt;
+  if(!collidesAt(player.x,ny,player.z)){
+    player.y=ny;
+    player.grounded=false;
+  } else {
+    if(player.vy<0){
+      player.grounded=true;
+      player.vy=0;
+      const footY=ny-PLAYER_H;
+      const blockTopY=Math.floor(footY/B)*B+B;
+      player.y=blockTopY+PLAYER_H;
+    } else {
+      player.vy=0;
+    }
+  }
+
+  if(player.y<-20){player.x=0;player.y=30;player.z=0;player.vy=0}
+}
+}
+
+// ============ RAYCASTING (DDA grid walk) ============
+function rayHit(){
+  const origin=new THREE.Vector3();
+  camera.getWorldPosition(origin);
+  const dir=new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  // Convert to block grid coords (grid step = B)
+  const ox=origin.x/B, oy=origin.y/B, oz=origin.z/B;
+  const dx=dir.x, dy=dir.y, dz=dir.z;
+  let gx=Math.floor(ox), gy=Math.floor(oy), gz=Math.floor(oz);
+  const sx=dx>0?1:-1, sy=dy>0?1:-1, sz=dz>0?1:-1;
+  const tdx=Math.abs(1/dx), tdy=Math.abs(1/dy), tdz=Math.abs(1/dz);
+  let tmx=(dx>0?(gx+1-ox):(ox-gx))*tdx;
+  let tmy=(dy>0?(gy+1-oy):(oy-gy))*tdy;
+  let tmz=(dz>0?(gz+1-oz):(oz-gz))*tdz;
+  let face=null;
+  const MAX_DIST=8;
+  for(let i=0;i<80;i++){
+    const wk=bKey(gx*B,gy*B,gz*B);
+    if(blockMap.has(wk)) return {bx:gx,by:gy,bz:gz,face,key:wk,entry:blockMap.get(wk)};
+    if(tmx<tmy&&tmx<tmz){if(tmx>MAX_DIST)return null;gx+=sx;tmx+=tdx;face={x:-sx,y:0,z:0}}
+    else if(tmy<tmz){if(tmy>MAX_DIST)return null;gy+=sy;tmy+=tdy;face={x:0,y:-sy,z:0}}
+    else{if(tmz>MAX_DIST)return null;gz+=sz;tmz+=tdz;face={x:0,y:0,z:-sz}}
+  }
+  return null;
+}
+
+// Checkpoint raycast (uses Three.js raycaster for checkpoint meshes)
+const cpRay=new THREE.Raycaster();
+function rayHitCheckpoint(){
+  cpRay.setFromCamera(new THREE.Vector2(0,0),camera);cpRay.far=INTERACT_RANGE;
+  const targets=cpMeshes.map(c=>c.mesh);
+  const hits=cpRay.intersectObjects(targets,false);
+  if(hits.length>0){
+    for(const cp of cpMeshes){if(cp.mesh===hits[0].object)return cp}
+  }
+  return null;
+}
+
+// ============ HOTBAR (biome-specific + specials) ============
+const specialMatC={};
+function gSpecialMat(bt){
+  const k=bt.c+'_'+(bt.glow?'g':'')+(bt.glass?'t':'');
+  if(!specialMatC[k]){
+    if(bt.glow) specialMatC[k]=new THREE.MeshStandardMaterial({color:bt.c,emissive:bt.c,emissiveIntensity:0.6});
+    else if(bt.glass) specialMatC[k]=new THREE.MeshStandardMaterial({color:bt.c,transparent:true,opacity:0.5,roughness:0.1,metalness:0.3});
+    else specialMatC[k]=gMat(bt.c);
+  }
+  return specialMatC[k];
+}
+function getCurrentBlocks(){
+  const bx=Math.floor(player.x/B),bz=Math.floor(player.z/B);
+  const biome=getBiomeAt(bx,bz);
+  const blocks=[...biome.blocks];
+  // Add special blocks from all unlocked biomes
+  const unlockedBiomes=new Set();
+  MODULES.forEach(m=>{if(isDone(m.id)){const b=BIOMES[BIOME_MAP[m.id]];if(b)unlockedBiomes.add(b)}});
+  unlockedBiomes.forEach(b=>{if(b.specials)b.specials.forEach(s=>blocks.push(s))});
+  return blocks;
+}
+function setupHotbar(){
+  const bar=document.getElementById('hotbar');bar.innerHTML='';
+  const blocks=getCurrentBlocks();
+  const maxShow=Math.min(blocks.length,10);
+  for(let i=0;i<maxShow;i++){
+    const bt=blocks[i];
+    const slot=document.createElement('div');
+    slot.className='hotbar-slot'+(i===selectedSlot?' active':'');
+    const special=bt.glow||bt.glass;
+    const border=special?'border:1px solid rgba(255,215,0,.5);':'';
+    const glow=bt.glow?'box-shadow:0 0 8px #'+bt.c.toString(16).padStart(6,'0')+';':'';
+    const opacity=bt.glass?'opacity:0.6;':'';
+    slot.innerHTML=`<span class="key">${i+1}</span><div class="block-preview" style="background:#${bt.c.toString(16).padStart(6,'0')};${border}${glow}${opacity}"></div><span class="bname">${bt.n}${special?'\u2728':''}</span>`;
+    bar.appendChild(slot);
+  }
+}
+
+// ============ BLOCK ACTIONS ============
+function breakOneBlock(bx,by,bz){
+  const wk=bKey(bx*B,by*B,bz*B);
+  const entry=blockMap.get(wk);if(!entry)return false;
+  if(entry.t==='placed'){
+    scene.remove(entry.mesh);blockMap.delete(wk);
+    const wx=bx*B,wy=by*B,wz=bz*B;
+    const idx=placed.findIndex(b=>b.x===wx&&b.y===wy&&b.z===wz);
+    if(idx>=0)placed.splice(idx,1);
+    saveBlk();
+  } else if(entry.t==='terrain'){
+    blockMap.delete(wk);
+  }
+  return true;
+}
+function doBlock(btn){
+  if(uiOpen)return;
+  const hit=rayHit();if(!hit)return;
+
+  if(btn===0){
+    if(!hit.entry)return;
+    const buildRegion=canBuildAt(hit.bx,hit.bz);
+    if(!buildRegion){
+      const region=getRegion(hit.bx,hit.bz);
+      if(region&&!isDone(region.id)){showLock(region);return}
+      showToast('请在已解锁区域附近破坏方块');return
+    }
+    const tool=getCurTool();
+    let didBreak=false;
+    if(tool.aoe){
+      // Hammer: break 3x3x1 on the face
+      for(let dx=-1;dx<=1;dx++)for(let dz=-1;dz<=1;dz++){
+        if(breakOneBlock(hit.bx+dx,hit.by,hit.bz+dz))didBreak=true;
+      }
+    } else {
+      didBreak=breakOneBlock(hit.bx,hit.by,hit.bz);
+    }
+    if(didBreak){
+      achvStats.broken++;checkAchv();
+      rebuildTerrainMeshes();
+    }
+  } else if(btn===2){
+    if(!hit.face)return;
+    const nx=hit.bx+hit.face.x, ny=hit.by+hit.face.y, nz=hit.bz+hit.face.z;
+    const wx=nx*B, wy=ny*B, wz=nz*B;
+
+    const buildRegion=canBuildAt(nx,nz);
+    if(!buildRegion){
+      const region=getRegion(nx,nz);
+      if(region&&!isDone(region.id)){showLock(region);return}
+      showToast('请在已解锁区域附近放置方块');return
+    }
+
+    const px=Math.floor(player.x/B),py=Math.floor(player.y/B),pz=Math.floor(player.z/B);
+    if(nx===px&&nz===pz&&(ny===py||ny===py-1))return;
+
+    const k=bKey(wx,wy,wz);
+    if(blockMap.has(k))return;
+    const blocks=getCurrentBlocks();
+    const bt=blocks[selectedSlot]||blocks[0];
+    const mat=(bt.glow||bt.glass)?gSpecialMat(bt):gMat(bt.c);
+    const mesh=new THREE.Mesh(boxGeo,mat);
+    mesh.position.set(wx,wy,wz);mesh.castShadow=true;
+    if(bt.glow){const pl=new THREE.PointLight(bt.c,0.4,12);mesh.add(pl)}
+    scene.add(mesh);
+    blockMap.set(k,{t:'placed',mesh});
+    placed.push({x:wx,y:wy,z:wz,c:bt.c});
+    saveBlk();
+    achvStats.placed++;checkAchv();
+  }
+}
+
+// ============ TOAST ============
+let toastTimer=null;
+function showToast(msg){
+  let t=document.querySelector('.toast');
+  if(!t){t=document.createElement('div');t.className='toast';document.body.appendChild(t)}
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2000);
+}
+
+// ============ LOCK OVERLAY ============
+let lockRegionRef=null;
+function showLock(region){
+  lockRegionRef=region;
+  lockUI();
+  const ov=document.getElementById('ov-lock');
+  document.getElementById('lk-title').textContent=region.module.name+' — 区域未解锁';
+  const p=modProg(region.id);
+  document.getElementById('lk-desc').textContent='完成该模块全部课程和考核后才能在此区域探索建造。\n当前进度: '+p.d+'/'+p.t;
+  ov.classList.add('open');
+}
+function closeLock(){
+  document.getElementById('ov-lock').classList.remove('open');
+  unlockUI();lockRegionRef=null;
+}
+
+// ============ LEARNING MODAL ============
+let curMod=null,curCrs=null,curView='list';
+function openModule(mid){
+  curMod=MODULES.find(m=>m.id===mid);if(!curMod)return;
+  curView='list';renderMod();
+  lockUI();
+  document.getElementById('ov-modal').classList.add('open');
+}
+function closeModule(){
+  document.getElementById('ov-modal').classList.remove('open');
+  curMod=null;curCrs=null;
+  updateStats();refreshCP();
+  // Force region indicator to refresh
+  lastRgn=null;lastRgnDone=null;
+  unlockUI();
+}
+function refreshCP(){
+  cpMeshes.forEach(cp=>{
+    const done=isDone(cp.region.id);
+    cp.mesh.material.emissiveIntensity=done?0.7:0.35;
+    cp.ring.material.color.set(done?0x4ecca3:0x666666);
+    cp.bnd.material.color.set(done?0x4ecca3:0x666666);
+    cp.bnd.material.opacity=done?0.25:0.08;
+    cp.gnd.material.opacity=done?0.12:0.04;
+  });
+}
+function renderMod(){
+  const ti=document.getElementById('m-title'),bd=document.getElementById('m-body');
+  if(curView==='list'){
+    ti.textContent=curMod.name;
+    const p=modProg(curMod.id);
+    let h=`<div class="mprog"><div class="mprog-bar"><div class="mprog-fill" style="width:${p.t?p.d/p.t*100:0}%"></div></div><div class="mprog-text">${p.d}/${p.t} 已完成</div></div>`;
+    if(isDone(curMod.id))h+=`<div style="text-align:center;padding:10px;margin-bottom:14px;background:rgba(78,204,163,.1);border-radius:10px;border:1px solid rgba(78,204,163,.3)"><b style="color:#4ecca3">&#127942; 模块已完成，区域已解锁！可自由探索建造。</b></div>`;
+    curMod.courses.forEach((c,i)=>{
+      const d=progress[c.id];
+      h+=`<div class="course-item ${d?'done':''}" onclick="openCrs(${i})"><div class="cstatus">${d?'&#10003;':i+1}</div><div class="cinfo"><h4>${c.title}</h4><div>${c.tools.filter(t=>t).map(t=>'<span class="tag">'+t+'</span>').join('')}</div></div><span style="color:#666;font-size:.78rem">${d?'已完成':'开始学习'} &#9654;</span></div>`;
+    });
+    bd.innerHTML=h;
+  } else if(curView==='content'){
+    ti.textContent=curCrs.title;
+    const learnBtn=curCrs.learnUrl?`<a href="${curCrs.learnUrl}" target="_blank" class="learn-banner">&#128218; 前往钉钉学习平台，观看完整课程视频<div class="lb-sub">点击跳转至官方认证学习页面，完成学习后返回答题</div></a>`:'';
+    bd.innerHTML=`<div>${learnBtn}<h3 class="stitle">课程内容</h3><div class="ct">${curCrs.content}</div><h3 class="stitle" style="margin-top:18px">涉及工具</h3><div>${curCrs.tools.filter(t=>t).map(t=>'<span class="tag" style="font-size:.78rem;padding:2px 8px">'+t+'</span>').join(' ')||'<span style="color:#888">理论课程</span>'}</div><div class="nav-row"><button class="btn-b" onclick="curView='list';renderMod()">&#9664; 返回目录</button><button class="btn-p" onclick="curView='quiz';renderMod()">开始考核 &#9654;</button></div></div>`;
+  } else if(curView==='quiz'){
+    ti.textContent=curCrs.title+' — 考核';
+    let h='<div>';
+    curCrs.quiz.forEach((q,qi)=>{
+      h+=`<div class="qq"><h4>${qi+1}. ${q.q}</h4>`;
+      q.o.forEach((opt,oi)=>{h+=`<div class="qo" data-q="${qi}" data-o="${oi}" onclick="pickOpt(this,${qi})">${opt}</div>`});
+      h+='</div>';
+    });
+    h+=`<div class="nav-row"><button class="btn-b" onclick="curView='content';renderMod()">&#9664; 返回课程</button><button class="btn-p" id="qsub" onclick="submitQ()">提交答案</button></div><div id="qres"></div></div>`;
+    bd.innerHTML=h;
+  }
+}
+function openCrs(i){curCrs=curMod.courses[i];curView='content';renderMod()}
+function pickOpt(el,qi){document.querySelectorAll('[data-q="'+qi+'"]').forEach(e=>e.classList.remove('sel'));el.classList.add('sel')}
+function submitQ(){
+  if(!curCrs)return;
+  let ok=0;const tot=curCrs.quiz.length;
+  curCrs.quiz.forEach((q,qi)=>{
+    const sel=document.querySelector('[data-q="'+qi+'"].sel');
+    document.querySelectorAll('[data-q="'+qi+'"]').forEach(o=>{
+      o.style.pointerEvents='none';
+      const oi=parseInt(o.dataset.o);
+      if(oi===q.a)o.classList.add('ok');
+      if(o.classList.contains('sel')&&oi!==q.a)o.classList.add('no');
+    });
+    if(sel&&parseInt(sel.dataset.o)===q.a)ok++;
+  });
+  const pass=ok===tot,area=document.getElementById('qres');
+  if(pass){
+    progress[curCrs.id]=true;saveProg();
+    const full=isDone(curMod.id);
+    area.innerHTML=`<div class="qr pass">&#127881; 全部正确！(${ok}/${tot})${full?'<br><br><b>&#127942; 模块全部完成，区域已解锁！</b>':''}</div><div class="nav-row" style="margin-top:10px;justify-content:center"><button class="btn-p" onclick="curView='list';renderMod()">返回目录</button></div>`;
+    updateStats();
+    if(full){setTimeout(()=>celebrate(curMod.name),500);checkAchv();setupToolHUD();setupHotbar()}
+  } else {
+    area.innerHTML=`<div class="qr fail">&#10060; ${ok}/${tot}，需全部答对。</div><div class="nav-row" style="margin-top:10px;justify-content:center"><button class="btn-s" onclick="curView='quiz';renderMod()">重新答题</button><button class="btn-b" onclick="curView='content';renderMod()">返回复习</button></div>`;
+  }
+  document.getElementById('qsub').style.display='none';
+}
+
+// ============ CELEBRATION ============
+function celebrate(name){
+  const cel=document.getElementById('celeb'),ban=document.getElementById('ubanner');
+  cel.classList.add('on');ban.classList.add('on');
+  document.getElementById('ub-title').textContent='"'+name+'" 区域已解锁！';
+  const cvs=document.getElementById('confetti');cvs.width=innerWidth;cvs.height=innerHeight;
+  const ctx=cvs.getContext('2d'),ps=[];
+  const cs=['#4ecca3','#45b7d1','#e17055','#fdcb6e','#a29bfe','#fd79a8','#55efc4'];
+  for(let i=0;i<150;i++)ps.push({x:Math.random()*cvs.width,y:Math.random()*cvs.height-cvs.height,w:Math.random()*8+4,h:Math.random()*6+3,c:cs[i%cs.length],vy:Math.random()*3+2,vx:(Math.random()-.5)*2,r:Math.random()*6.28,vr:(Math.random()-.5)*.1});
+  let f=0;
+  function ani(){ctx.clearRect(0,0,cvs.width,cvs.height);ps.forEach(p=>{p.y+=p.vy;p.x+=p.vx;p.r+=p.vr;ctx.save();ctx.translate(p.x,p.y);ctx.rotate(p.r);ctx.fillStyle=p.c;ctx.fillRect(-p.w/2,-p.h/2,p.w,p.h);ctx.restore()});f++;if(f<200)requestAnimationFrame(ani);else endCeleb()}
+  ani();
+  document.getElementById('ub-ok').onclick=endCeleb;
+  function endCeleb(){cel.classList.remove('on');ban.classList.remove('on');f=999;lastRgn=null;lastRgnDone=null;refreshCP()}
+}
+
+// ============ ANIMATE CHECKPOINTS ============
+function animCP(dt){
+  time+=dt;
+  cpMeshes.forEach((cp,i)=>{
+    cp.mesh.position.y=cp.baseY+Math.sin(time*1.5+i*.7)*1.5;
+    cp.mesh.rotation.y=time*.5+i;
+    cp.light.position.copy(cp.mesh.position);
+  });
+}
+
+// ============ REGION INDICATOR ============
+let lastRgn=null, lastRgnDone=null; // track both region and completion state
+function checkRgn(){
+  const bx=Math.floor(player.x/B),bz=Math.floor(player.z/B);
+  const r=getRegion(bx,bz),ind=document.getElementById('region-indicator');
+  if(r){
+    const done=isDone(r.id);
+    // Refresh if region changed OR completion state changed
+    if(r.id!==lastRgn || done!==lastRgnDone){
+      lastRgn=r.id; lastRgnDone=done;
+      achvStats.visitedSet.add(r.id);achvStats.visited=achvStats.visitedSet.size;checkAchv();
+      ind.innerHTML=`<span style="color:${r.module.color}">${r.biome.name} · ${r.module.level} · ${r.module.name}</span> ${done?'<span style="color:#4ecca3"> [已解锁 - 可自由建造]</span>':'<span style="color:#e74c3c"> [未解锁 - 按E学习]</span>'}`;
+      ind.classList.add('show');
+      setupHotbar();
+      scene.background.set(r.biome.sky);
+      scene.fog.color.set(r.biome.fog);
+    }
+  } else if(lastRgn){
+    lastRgn=null;lastRgnDone=null;ind.classList.remove('show');
+    scene.background.set(0x87ceeb);scene.fog.color.set(0x87ceeb);
+  }
+}
+
+// ============ INTERACTION ============
+const INTERACT_RANGE = 18;
+let nearbyCP = null; // currently nearby checkpoint
+
+function findNearbyCP(){
+  let best=null, bestDist=Infinity;
+  for(const cp of cpMeshes){
+    const dx=player.x-cp.region.cx*B, dz=player.z-cp.region.cz*B;
+    const dist=Math.sqrt(dx*dx+dz*dz);
+    if(dist<INTERACT_RANGE && dist<bestDist){best=cp;bestDist=dist}
+  }
+  return best;
+}
+
+function updateProximity(){
+  nearbyCP = findNearbyCP();
+  const prompt = document.getElementById('interact-prompt');
+  if(nearbyCP && !uiOpen){
+    document.getElementById('ip-name').textContent = nearbyCP.region.module.name;
+    prompt.classList.add('show');
+  } else {
+    prompt.classList.remove('show');
+  }
+}
+
+function interact(){
+  if(keys['KeyE']&&interactCD<=0){
+    interactCD=.5;
+    if(nearbyCP){openModule(nearbyCP.region.id);return}
+  }
+}
+
+// ============ INIT & LOOP ============
+function startGame(){
+  document.getElementById('start').style.display='none';
+  document.getElementById('hud').style.display='';
+  document.getElementById('hotbar').style.display='flex';
+  initScene();setupHotbar();updateStats();
+  initAchvStats();setupToolHUD();setupAchvPanel();
+  document.getElementById('tool-hud').style.display='block';
+  document.getElementById('achv-panel').style.display='block';
+
+  // Pointer lock — only when no UI is open
+  renderer.domElement.addEventListener('click',()=>{if(!uiOpen)renderer.domElement.requestPointerLock()});
+  document.addEventListener('pointerlockchange',()=>{
+    const locked=document.pointerLockElement===renderer.domElement;
+    document.getElementById('crosshair').style.display=locked?'block':'none';
+    document.getElementById('tool-icon').style.display=locked?'block':'none';
+    document.getElementById('hotbar').style.display=locked?'flex':'none';
+  });
+  document.addEventListener('mousemove',e=>{
+    if(document.pointerLockElement!==renderer.domElement)return;
+    yaw-=e.movementX*.002;pitch-=e.movementY*.002;
+    pitch=Math.max(-1.5,Math.min(1.5,pitch));
+  });
+
+  // Mouse — block actions only when pointer locked
+  renderer.domElement.addEventListener('mousedown',e=>{
+    if(uiOpen)return;
+    if(document.pointerLockElement!==renderer.domElement)return;
+    e.preventDefault();
+    if(e.button===0){
+      // Left click: check if looking at a checkpoint
+      const cpHit=rayHitCheckpoint();
+      if(cpHit){openModule(cpHit.region.id);return}
+      doBlock(0);
+    } else if(e.button===2){
+      doBlock(2);
+    }
+  });
+  renderer.domElement.addEventListener('contextmenu',e=>e.preventDefault());
+
+  document.addEventListener('keydown',e=>{
+    keys[e.code]=true;
+    if(e.code>='Digit1'&&e.code<='Digit9'){const n=parseInt(e.code[5])-1;if(n<getCurrentBlocks().length){selectedSlot=n;setupHotbar()}}
+    if(e.code==='Digit0'){selectedSlot=9;setupHotbar()}
+    if(e.code==='KeyQ'&&!uiOpen)cycleTool();
+    if(e.code==='KeyF'&&!uiOpen&&nearbyNPC&&!npcDialogOpen)openNPCDialog(nearbyNPC);
+    if(e.code==='KeyF'&&npcDialogOpen){if(npcDialogTyping)skipNPCType();else nextNPCLine()}
+    if(e.code==='Escape'&&npcDialogOpen){e.preventDefault();closeNPCDialog()}
+  });
+  document.addEventListener('keyup',e=>{keys[e.code]=false});
+
+  // Lock overlay buttons
+  document.getElementById('lk-learn').addEventListener('click',()=>{closeLock();if(lockRegionRef)openModule(lockRegionRef.id)});
+  document.getElementById('lk-back').addEventListener('click',closeLock);
+  document.getElementById('lock-bg').addEventListener('click',closeLock);
+
+  // Modal buttons
+  document.getElementById('m-close').addEventListener('click',closeModule);
+  document.getElementById('modal-bg').addEventListener('click',closeModule);
+
+  // Resize
+  addEventListener('resize',()=>{camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();renderer.setSize(innerWidth,innerHeight)});
+
+  // Game loop
+  (function loop(){
+    requestAnimationFrame(loop);
+    const dt=Math.min(clock.getDelta(),.05);
+    if(document.pointerLockElement===renderer.domElement&&!uiOpen){
+      updatePlayer(dt);
+      if(interactCD>0)interactCD-=dt;
+      interact();
+    }
+    if(!uiOpen&&document.pointerLockElement!==renderer.domElement){
+      if(interactCD>0)interactCD-=dt;
+      interact();
+    }
+    camera.position.set(player.x,player.y,player.z);
+    camera.rotation.order='YXZ';camera.rotation.y=yaw;camera.rotation.x=pitch;
+    updateProximity();updateNPCPrompt();
+    animCP(dt);animNPCs(dt);checkRgn();
+    renderer.render(scene,camera);
+  })();
+}
+// Auto-enter world on page load
+window.addEventListener('DOMContentLoaded',()=>startGame());
+</script>
+</body>
+</html>
