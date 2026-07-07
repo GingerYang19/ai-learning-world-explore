@@ -7,3 +7,10 @@ node_modules/
 ai-learning-world/
 gen_tools.py
 take_screenshots.mjs
+make_icon.mjs
+make_ico.mjs
+desktop-app/dist/
+desktop-app/node_modules/
+desktop-app/package-lock.json
+screenshots/.gitkeep
+screenshots/start_screen.png

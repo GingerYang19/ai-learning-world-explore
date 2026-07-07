@@ -60,17 +60,28 @@
 
 ## 快速开始
 
+### 方式一：浏览器直接打开
+
 无需安装任何依赖，直接在浏览器中打开即可：
 
 ```bash
-# 克隆项目
 git clone https://github.com/GingerYang19/ai-learning-world-explore.git
-
-# 用浏览器打开
 open ai-learning-world-2.html
 ```
 
-或直接双击 `ai-learning-world-2.html` 文件在浏览器中运行。
+### 方式二：Windows 桌面版
+
+从 [Releases](https://github.com/GingerYang19/ai-learning-world-explore/releases) 下载 `AI学习世界-探索版 Setup 1.0.0.exe` 安装包，双击安装即可运行。
+
+如需自行构建：
+
+```bash
+cd desktop-app
+npm install
+npm run build:win
+```
+
+构建产物在 `desktop-app/dist/` 目录下。
 
 ## 技术栈
 
@@ -85,6 +96,12 @@ open ai-learning-world-2.html
 
 ```
 ├── ai-learning-world-2.html   # 探索版（主文件，浏览器直接打开）
+├── desktop-app/               # Electron 桌面版
+│   ├── main.js                # Electron 主进程
+│   ├── preload.js             # 预加载脚本
+│   ├── package.json           # 构建配置
+│   ├── icon.png               # 应用图标
+│   └── game/index.html        # 游戏文件
 ├── screenshots/               # 游戏截图
 └── README.md
 ```
