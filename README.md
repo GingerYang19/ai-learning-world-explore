@@ -5,14 +5,13 @@
 ## 游戏截图
 
 ### 探索世界
-<!-- 在浏览器中打开 ai-learning-world-2.html，截取游戏画面后保存到 screenshots/ 目录 -->
 ![探索世界](screenshots/gameplay.png)
+
+### 全屏地图
+![全屏地图](screenshots/fullmap.png)
 
 ### 学习模块
 ![学习模块](screenshots/module_list.png)
-
-### 课程考核
-![课程考核](screenshots/quiz.png)
 
 ## 游戏特色
 
@@ -85,8 +84,7 @@ open ai-learning-world-2.html
 ## 项目结构
 
 ```
-├── ai-learning-world-2.html   # 探索版（当前主版本）
-├── ai-learning-world.html     # 原始版本 v1.0.0
+├── ai-learning-world-2.html   # 探索版（主文件，浏览器直接打开）
 ├── screenshots/               # 游戏截图
 └── README.md
 ```
