@@ -60,7 +60,7 @@
 
 ## 快速开始
 
-### 方式一：浏览器直接打开
+### 方式一：浏览器直接打开（单机版，localStorage 存档）
 
 无需安装任何依赖，直接在浏览器中打开即可：
 
@@ -69,7 +69,25 @@ git clone https://github.com/GingerYang19/ai-learning-world-explore.git
 open ai-learning-world-2.html
 ```
 
-### 方式二：Windows 桌面版
+### 方式二：服务端版（注册登录，云端存档）
+
+支持多用户注册/登录，游戏进度保存在服务器，换设备也能恢复：
+
+```bash
+git clone https://github.com/GingerYang19/ai-learning-world-explore.git
+cd ai-learning-world-explore
+npm install
+npm start
+# 浏览器打开 http://localhost:3000
+```
+
+服务端功能：
+- 用户注册/登录（JWT + bcrypt）
+- 自动保存玩家位置、学习进度、放置方块、经验等级、AI助手、成就
+- 下次登录自动恢复到上次游玩状态
+- 数据存储在 `data/data.xlsx`
+
+### 方式三：Windows 桌面版
 
 从 [Releases](https://github.com/GingerYang19/ai-learning-world-explore/releases) 下载 `AI学习世界-探索版 Setup 1.0.0.exe` 安装包，双击安装即可运行。
 
@@ -90,12 +108,24 @@ npm run build:win
 - **Perlin Noise (fbm)** — 程序化地形生成
 - **Canvas 2D** — 罗盘、小地图、全屏地图绘制
 - **Pointer Lock API** — FPS 风格视角控制
-- **localStorage** — 本地数据持久化
+- **Express.js** — 服务端框架
+- **JWT + bcrypt** — 用户认证
+- **XLSX** — 数据持久化
+- **localStorage** — 单机版本地存档
 
 ## 项目结构
 
 ```
-├── ai-learning-world-2.html   # 探索版（主文件，浏览器直接打开）
+├── ai-learning-world-2.html   # 探索版（单机版，浏览器直接打开）
+├── server.js                  # Express 服务端（注册登录 + 进度保存）
+├── package.json               # 服务端依赖
+├── db/
+│   └── index.js               # XLSX 数据库适配器
+├── public/
+│   ├── login.html             # 登录/注册页面
+│   └── game.html              # 游戏文件（服务端版）
+├── data/                      # 数据存储目录（自动生成）
+│   └── data.xlsx              # 用户数据
 ├── desktop-app/               # Electron 桌面版
 │   ├── main.js                # Electron 主进程
 │   ├── preload.js             # 预加载脚本

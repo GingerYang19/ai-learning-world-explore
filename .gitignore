@@ -9,8 +9,11 @@ gen_tools.py
 take_screenshots.mjs
 make_icon.mjs
 make_ico.mjs
+make_icon512.mjs
 desktop-app/dist/
 desktop-app/node_modules/
 desktop-app/package-lock.json
+package-lock.json
+data/
 screenshots/.gitkeep
 screenshots/start_screen.png
