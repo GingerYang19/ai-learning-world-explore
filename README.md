@@ -5,6 +5,7 @@
 ## 游戏截图
 
 ### 探索世界
+<!-- 在浏览器中打开 ai-learning-world-2.html，截取游戏画面后保存到 screenshots/ 目录 -->
 ![探索世界](screenshots/gameplay.png)
 
 ### 学习模块
