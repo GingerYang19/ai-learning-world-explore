@@ -1,0 +1,19 @@
+{
+  "name": "ai-learning-world-explore-server",
+  "version": "1.0.0",
+  "description": "AI学习世界探索版 - 服务端",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "cookie-parser": "^1.4.6",
+    "bcryptjs": "^2.4.3",
+    "jsonwebtoken": "^9.0.2",
+    "xlsx": "^0.18.5"
+  },
+  "author": "GingerYang19",
+  "license": "MIT"
+}

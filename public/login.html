@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登录 · AI 学习世界 - 探索版</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%;font-family:'Microsoft YaHei','PingFang SC',sans-serif;color:#fff;
+    background:linear-gradient(135deg,#0a0a1a,#1a1a3e);overflow:hidden}
+  body{display:flex;align-items:center;justify-content:center;padding:24px}
+  .card{width:380px;background:rgba(30,30,46,.95);border:2px solid rgba(78,204,163,.3);
+    border-radius:14px;padding:32px 28px;box-shadow:0 8px 32px rgba(0,0,0,.5)}
+  h1{margin:0 0 4px;font-size:1.8rem;color:#ffd700;text-align:center;text-shadow:0 0 20px rgba(255,215,0,.3)}
+  .sub{text-align:center;font-size:.85rem;color:#888;margin-bottom:24px}
+  .tabs{display:flex;border:1px solid rgba(78,204,163,.2);border-radius:8px;overflow:hidden;margin-bottom:20px}
+  .tabs button{flex:1;padding:10px 0;border:0;background:rgba(255,255,255,.03);color:#888;
+    font-family:inherit;font-size:.9rem;cursor:pointer;transition:all .2s}
+  .tabs button.active{background:rgba(78,204,163,.15);color:#4ecca3;font-weight:bold}
+  label{display:block;font-size:.78rem;margin:12px 0 4px;color:#aaa}
+  input{width:100%;padding:11px 14px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.1);
+    color:#fff;font-family:inherit;font-size:.9rem;outline:none;border-radius:8px;transition:border .2s}
+  input:focus{border-color:#4ecca3}
+  .btn{width:100%;margin-top:20px;padding:12px 0;background:#4ecca3;border:none;
+    color:#111;font-family:inherit;font-size:1rem;font-weight:bold;cursor:pointer;border-radius:8px;transition:all .2s}
+  .btn:hover{background:#5fd6b3;transform:scale(1.02)}
+  .btn:disabled{opacity:.5;cursor:wait}
+  .msg{margin-top:14px;padding:10px;border-radius:8px;font-size:.82rem;display:none;text-align:center}
+  .msg.err{display:block;background:rgba(255,80,80,.1);border:1px solid rgba(255,80,80,.3);color:#ff6b6b}
+  .msg.ok{display:block;background:rgba(78,204,163,.1);border:1px solid rgba(78,204,163,.3);color:#4ecca3}
+  .hint{margin-top:14px;font-size:.72rem;color:#555;text-align:center;line-height:1.6}
+</style>
+</head>
+<body>
+<form class="card" id="form" autocomplete="off">
+  <h1>AI 学习世界</h1>
+  <div class="sub">探索版 - 登录后自动保存游戏进度</div>
+  <div class="tabs">
+    <button type="button" id="tab-login" class="active">登 录</button>
+    <button type="button" id="tab-register">注 册</button>
+  </div>
+  <label>用户名</label>
+  <input id="username" maxlength="16" placeholder="2-16 位字母/数字/中文" required />
+  <label>密码</label>
+  <input id="password" type="password" maxlength="64" placeholder="至少 4 位" required />
+  <button class="btn" id="submit" type="submit">登 录</button>
+  <div class="msg" id="msg"></div>
+  <div class="hint">数据保存在服务器，同一账号随时恢复进度。</div>
+</form>
+<script>
+let mode='login';
+const tabL=document.getElementById('tab-login'),tabR=document.getElementById('tab-register');
+const submit=document.getElementById('submit'),msg=document.getElementById('msg');
+function setMode(m){mode=m;tabL.classList.toggle('active',m==='login');tabR.classList.toggle('active',m==='register');submit.textContent=m==='login'?'登 录':'注 册';msg.className='msg'}
+tabL.onclick=()=>setMode('login');tabR.onclick=()=>setMode('register');
+document.getElementById('form').addEventListener('submit',async e=>{
+  e.preventDefault();msg.className='msg';
+  const username=document.getElementById('username').value.trim(),password=document.getElementById('password').value;
+  submit.disabled=true;
+  try{
+    if(mode==='register'){
+      const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+      const j=await r.json();if(!r.ok)throw new Error(j.error||'注册失败');
+      msg.className='msg ok';msg.textContent='注册成功，正在登录...';
+    }
+    const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username,password})});
+    const j=await r.json();if(!r.ok)throw new Error(j.error||'登录失败');
+    msg.className='msg ok';msg.textContent='登录成功，进入游戏...';
+    setTimeout(()=>location.href='/',400);
+  }catch(e){msg.className='msg err';msg.textContent=e.message}
+  finally{submit.disabled=false}
+});
+</script>
+</body>
+</html>

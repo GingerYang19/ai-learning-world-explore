@@ -196,11 +196,11 @@ canvas.game-canvas{display:block;position:fixed;inset:0;z-index:0}
 </style>
 </head>
 <body>
-<div id="start"><h1>AI 学习世界</h1><p class="sub">探索版 - 寻找隐藏宝箱</p><p class="sub2">广袤探索世界 | 冲刺与二段跳 | AI助手伙伴 | 天气系统</p><button onclick="startGame()">开始探索</button><p class="hint">WASD移动 | 空格跳跃 | Shift冲刺 | M地图 | 完成学习解锁AI助手</p></div>
+<div id="start"><h1>AI 学习世界</h1><p class="sub">探索版 - 寻找隐藏宝箱</p><p class="sub2" id="welcome-msg">广袤探索世界 | 冲刺与二段跳 | AI助手伙伴 | 天气系统</p><button onclick="startGame()">开始探索</button><p class="hint">WASD移动 | 空格跳跃 | Shift冲刺 | M地图 | 完成学习解锁AI助手</p></div>
 <div id="hud" style="display:none">
   <div id="hud-title">AI 学习世界 - 探索版</div>
   <div id="hud-controls"><b>WASD</b> 移动 · <b>空格</b> 跳跃 · <b>Shift</b> 冲刺 · <b>鼠标</b> 视角<br><b>左键</b> 破坏 · <b>右键</b> 放置 · <b>1-0</b> 切换方块<br><b>Q</b> 切换工具 · <b>E</b> 打开宝箱 · <b>F</b> 与NPC对话<br><b>M</b> 全屏地图</div>
-  <div id="hud-stats"><div>已发现宝箱 <span class="val" id="s-mod">0/17</span></div><div>课程 <span class="val" id="s-crs">0/97</span></div><div>已解锁 <span class="val" id="s-rgn">0/17</span></div></div>
+  <div id="hud-stats"><div id="hud-user" style="color:#ffd700;margin-bottom:4px;font-size:.72rem"></div><div>已发现宝箱 <span class="val" id="s-mod">0/17</span></div><div>课程 <span class="val" id="s-crs">0/97</span></div><div>已解锁 <span class="val" id="s-rgn">0/17</span></div><div style="margin-top:6px"><button id="logout-btn" style="background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.15);color:#aaa;padding:3px 10px;border-radius:4px;cursor:pointer;font-size:.65rem;pointer-events:auto" onclick="doLogout()">退出登录</button></div></div>
 </div>
 <div id="crosshair"></div>
 <img id="tool-icon" />
@@ -421,10 +421,17 @@ const MODULES=[
 const TOTAL_M=MODULES.length, TOTAL_C=MODULES.reduce((s,m)=>s+m.courses.length,0);
 
 // ============ STATE ============
-const progress=JSON.parse(localStorage.getItem('alw2-prog')||'{}');
-const placed=JSON.parse(localStorage.getItem('alw2-blk')||'[]');
-function saveProg(){localStorage.setItem('alw2-prog',JSON.stringify(progress))}
-function saveBlk(){localStorage.setItem('alw2-blk',JSON.stringify(placed))}
+let _serverUser = null;
+const progress = {};
+const placed = [];
+function saveProg(){
+  localStorage.setItem('alw2-prog',JSON.stringify(progress));
+  if(_serverUser) fetch('/api/progress',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({course_ids:Object.keys(progress).filter(k=>progress[k])})}).catch(()=>{});
+}
+function saveBlk(){
+  localStorage.setItem('alw2-blk',JSON.stringify(placed));
+  if(_serverUser) fetch('/api/blocks',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({blocks:placed})}).catch(()=>{});
+}
 function isDone(id){const m=MODULES.find(x=>x.id===id);return m&&m.courses.every(c=>progress[c.id])}
 function modProg(id){const m=MODULES.find(x=>x.id===id);if(!m)return{d:0,t:0};return{d:m.courses.filter(c=>progress[c.id]).length,t:m.courses.length}}
 
@@ -560,9 +567,12 @@ const ACHV=[
   {id:'tool_unlock',icon:'\u{1F528}',title:'工具达人',desc:'解锁全部工具',check:s=>s.unlocked>=5},
   {id:'visited_5',icon:'\u{1F5FA}',title:'旅行者',desc:'到访5个不同区域',check:s=>s.visited>=5}
 ];
-const achvState=JSON.parse(localStorage.getItem('alw2-achv')||'{}');
+const achvState={};
 const achvStats={broken:0,placed:0,unlocked:0,visited:0,visitedSet:new Set()};
-function saveAchv(){localStorage.setItem('alw2-achv',JSON.stringify(achvState))}
+function saveAchv(){
+  localStorage.setItem('alw2-achv',JSON.stringify(achvState));
+  if(_serverUser){const ids=Object.keys(achvState).filter(k=>achvState[k]);fetch('/api/achievements',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({achv_ids:ids})}).catch(()=>{});}
+}
 function initAchvStats(){
   achvStats.placed=placed.length;
   achvStats.unlocked=MODULES.filter(m=>isDone(m.id)).length;
@@ -587,9 +597,12 @@ function setupAchvPanel(){
 }
 
 // ============ XP & LEVEL SYSTEM ============
-const xpState=JSON.parse(localStorage.getItem('alw2-xp')||'{"xp":0,"level":1}');
+const xpState={xp:0,level:1};
 function xpForLevel(lv){return lv*100}
-function saveXP(){localStorage.setItem('alw2-xp',JSON.stringify(xpState))}
+function saveXP(){
+  localStorage.setItem('alw2-xp',JSON.stringify(xpState));
+  if(_serverUser) fetch('/api/stats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({xp:xpState.xp,level:xpState.level,pets:[...activePetBiomes]})}).catch(()=>{});
+}
 function gainXP(amount){
   xpState.xp+=amount;
   while(xpState.xp>=xpForLevel(xpState.level)){xpState.xp-=xpForLevel(xpState.level);xpState.level++;onLevelUp()}
@@ -698,8 +711,11 @@ const PET_TYPES={
   crystal:{name:'注意力光点',emoji:'\u2728',body:0xce93d8,head:0xf3e5f5,buff:'glow',buffVal:1,desc:'周围发光照明'},
   savanna:{name:'推理猎豹',emoji:'\u{1F9E0}',body:0xffb74d,head:0xffe0b2,buff:'sprint',buffVal:1.3,desc:'冲刺加速30%'}
 };
-let petMeshes=[];let activePetBiomes=new Set(JSON.parse(localStorage.getItem('alw2-pets')||'[]'));
-function savePets(){localStorage.setItem('alw2-pets',JSON.stringify([...activePetBiomes]))}
+let petMeshes=[];let activePetBiomes=new Set();
+function savePets(){
+  localStorage.setItem('alw2-pets',JSON.stringify([...activePetBiomes]));
+  if(_serverUser) fetch('/api/stats',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({xp:xpState.xp,level:xpState.level,pets:[...activePetBiomes]})}).catch(()=>{});
+}
 function hasPetBuff(buffName){for(const bn of activePetBiomes){const pt=PET_TYPES[bn];if(pt&&pt.buff===buffName)return pt.buffVal}return 0}
 function buildPetMesh(pt){
   const g=new THREE.Group();const s=0.5;
@@ -1933,6 +1949,45 @@ function interact(){
   }
 }
 
+// ============ SERVER DATA LOADING ============
+let _savedPos = null;
+async function loadServerData(){
+  try {
+    const r = await fetch('/api/me');
+    if (!r.ok) return false;
+    const d = await r.json();
+    _serverUser = d.user;
+    // Restore progress
+    if (Array.isArray(d.progress)) d.progress.forEach(cid => { progress[cid] = true; });
+    // Restore placed blocks
+    if (Array.isArray(d.placed)) { placed.length = 0; d.placed.forEach(b => placed.push(b)); }
+    // Restore achievements
+    if (Array.isArray(d.achievements)) d.achievements.forEach(aid => { achvState[aid] = true; });
+    // Restore XP & level
+    if (d.xp !== undefined) xpState.xp = Number(d.xp) || 0;
+    if (d.level !== undefined) xpState.level = Number(d.level) || 1;
+    // Restore pets
+    if (Array.isArray(d.pets)) d.pets.forEach(p => activePetBiomes.add(p));
+    // Restore position
+    if (d.save) _savedPos = d.save;
+    // Update welcome
+    document.getElementById('welcome-msg').textContent = '欢迎回来，' + d.user.username + '！';
+    document.getElementById('hud-user').textContent = d.user.username;
+    return true;
+  } catch { return false; }
+}
+function savePositionToServer(){
+  if (!_serverUser) return;
+  fetch('/api/save',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({
+    pos_x: player.x, pos_y: player.y, pos_z: player.z,
+    yaw: yaw, pitch: pitch,
+    hotbar_slot: selectedSlot, cur_tool: curTool
+  })}).catch(()=>{});
+}
+function doLogout(){
+  fetch('/api/logout',{method:'POST'}).then(()=>{ location.href='/login.html'; }).catch(()=>{ location.href='/login.html'; });
+}
+
 // ============ INIT & LOOP ============
 function startGame(){
   document.getElementById('start').style.display='none';
@@ -1940,6 +1995,14 @@ function startGame(){
   document.getElementById('hotbar').style.display='flex';
   initScene();setupHotbar();updateStats();updateXPBar();
   initAchvStats();setupToolHUD();setupAchvPanel();
+  // Restore saved position
+  if(_savedPos){
+    player.x=Number(_savedPos.pos_x)||0;player.y=Number(_savedPos.pos_y)||0;player.z=Number(_savedPos.pos_z)||0;
+    yaw=Number(_savedPos.yaw)||0;pitch=Number(_savedPos.pitch)||0;
+    if(_savedPos.hotbar_slot!==undefined)selectedSlot=Number(_savedPos.hotbar_slot)||0;
+    if(_savedPos.cur_tool!==undefined)curTool=Number(_savedPos.cur_tool)||0;
+    setupHotbar();
+  }
   document.getElementById('tool-icon').src=getCurTool().icon;
   document.getElementById('tool-hud').style.display='block';
   document.getElementById('achv-panel').style.display='block';
@@ -2021,8 +2084,28 @@ function startGame(){
     if(mapDrawTimer>0.5){mapDrawTimer=0;drawMinimap();if(fullMapOpen)drawFullMap()}
     renderer.render(scene,camera);
   })();
+  // Auto-save position to server every 30 seconds
+  setInterval(savePositionToServer, 30000);
+  // Save on page unload
+  window.addEventListener('beforeunload', savePositionToServer);
 }
-window.addEventListener('DOMContentLoaded',()=>startGame());
+window.addEventListener('DOMContentLoaded', async ()=>{
+  // Try to load server data before starting
+  const localProg = JSON.parse(localStorage.getItem('alw2-prog')||'{}');
+  const localBlk = JSON.parse(localStorage.getItem('alw2-blk')||'[]');
+  const localAchv = JSON.parse(localStorage.getItem('alw2-achv')||'{}');
+  const localXP = JSON.parse(localStorage.getItem('alw2-xp')||'{"xp":0,"level":1}');
+  const localPets = JSON.parse(localStorage.getItem('alw2-pets')||'[]');
+  const loaded = await loadServerData();
+  if (!loaded) {
+    // Fallback to localStorage if not logged in
+    Object.assign(progress, localProg);
+    localBlk.forEach(b => placed.push(b));
+    Object.assign(achvState, localAchv);
+    Object.assign(xpState, localXP);
+    localPets.forEach(p => activePetBiomes.add(p));
+  }
+});
 </script>
 </body>
 </html>
