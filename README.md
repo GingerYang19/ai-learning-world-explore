@@ -65,7 +65,7 @@
 
 ```bash
 # 克隆项目
-git clone https://github.com/GingerYang19/ai-learning-world.git
+git clone https://github.com/GingerYang19/ai-learning-world-explore.git
 
 # 用浏览器打开
 open ai-learning-world-2.html
