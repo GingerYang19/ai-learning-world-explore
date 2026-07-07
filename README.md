@@ -24,7 +24,8 @@
 - **天气系统** — 根据生态群系动态切换雨/雪/晴天气效果
 - **自由建造** — 学习区域外的世界可自由破坏和放置方块
 - **地图导航** — 罗盘、小地图、全屏地图三级导航系统，标注宝箱与 NPC 位置
-- **本地存档** — 学习进度、放置方块、经验等级、AI 助手均通过 localStorage 自动保存
+- **用户账号系统** — 注册登录后游戏进度自动保存至服务器，换设备也能恢复
+- **多端支持** — 支持浏览器单机版、服务端多用户版、Windows/macOS 桌面版
 
 ## 学习模块
 
@@ -60,18 +61,18 @@
 
 ## 快速开始
 
-### 方式一：浏览器直接打开（单机版，localStorage 存档）
+### 方式一：浏览器直接打开（单机版）
 
-无需安装任何依赖，直接在浏览器中打开即可：
+无需安装任何依赖，直接在浏览器中打开即可，游戏进度通过 localStorage 自动保存：
 
 ```bash
 git clone https://github.com/GingerYang19/ai-learning-world-explore.git
 open ai-learning-world-2.html
 ```
 
-### 方式二：服务端版（注册登录，云端存档）
+### 方式二：服务端版（注册登录，多用户云端存档）
 
-支持多用户注册/登录，游戏进度保存在服务器，换设备也能恢复：
+支持多用户注册/登录，游戏进度保存在服务器，换设备也能恢复进度：
 
 ```bash
 git clone https://github.com/GingerYang19/ai-learning-world-explore.git
@@ -82,55 +83,67 @@ npm start
 ```
 
 服务端功能：
-- 用户注册/登录（JWT + bcrypt）
-- 自动保存玩家位置、学习进度、放置方块、经验等级、AI助手、成就
+- 用户注册/登录（JWT 认证 + bcrypt 加密）
+- 自动保存玩家位置、学习进度、放置方块、经验等级、AI 助手、成就
+- 每 30 秒自动保存位置，页面关闭时也会保存
 - 下次登录自动恢复到上次游玩状态
-- 数据存储在 `data/data.xlsx`
+- 数据存储在 `data/data.xlsx`，无需额外数据库
 
-### 方式三：Windows 桌面版
+### 方式三：桌面版
 
-从 [Releases](https://github.com/GingerYang19/ai-learning-world-explore/releases) 下载 `AI学习世界-探索版 Setup 1.0.0.exe` 安装包，双击安装即可运行。
+从 [Releases](https://github.com/GingerYang19/ai-learning-world-explore/releases) 下载对应平台安装包：
+
+| 平台 | 文件 |
+|------|------|
+| Windows | `AI学习世界-探索版 Setup 1.0.0.exe` |
+| macOS | `AI学习世界-探索版-1.0.0-arm64.dmg` |
+| macOS (zip) | `AI学习世界-探索版-1.0.0-arm64-mac.zip` |
 
 如需自行构建：
 
 ```bash
 cd desktop-app
 npm install
-npm run build:win
+npm run build:win    # Windows
+npm run build:mac    # macOS
+npm run build:linux  # Linux
 ```
 
 构建产物在 `desktop-app/dist/` 目录下。
 
 ## 技术栈
 
-- **Three.js r128** — 3D 渲染引擎（CDN 加载）
-- **InstancedMesh** — 体素地形高性能渲染
-- **Perlin Noise (fbm)** — 程序化地形生成
-- **Canvas 2D** — 罗盘、小地图、全屏地图绘制
-- **Pointer Lock API** — FPS 风格视角控制
-- **Express.js** — 服务端框架
-- **JWT + bcrypt** — 用户认证
-- **XLSX** — 数据持久化
-- **localStorage** — 单机版本地存档
+| 技术 | 用途 |
+|------|------|
+| Three.js r128 | 3D 渲染引擎（CDN 加载） |
+| InstancedMesh | 体素地形高性能渲染 |
+| Perlin Noise (fbm) | 程序化地形生成 |
+| Canvas 2D | 像素风工具图标、罗盘、小地图、全屏地图 |
+| Pointer Lock API | FPS 风格视角控制 |
+| Express.js | 服务端框架 |
+| JWT + bcrypt | 用户认证与密码加密 |
+| XLSX | 服务端数据持久化 |
+| localStorage | 单机版本地存档 |
+| Electron | 桌面版打包 |
 
 ## 项目结构
 
 ```
-├── ai-learning-world-2.html   # 探索版（单机版，浏览器直接打开）
-├── server.js                  # Express 服务端（注册登录 + 进度保存）
-├── package.json               # 服务端依赖
+├── ai-learning-world-2.html   # 单机版（浏览器直接打开，localStorage 存档）
+├── server.js                  # Express 服务端（注册登录 + 云端进度保存）
+├── package.json               # 服务端依赖配置
 ├── db/
 │   └── index.js               # XLSX 数据库适配器
 ├── public/
 │   ├── login.html             # 登录/注册页面
-│   └── game.html              # 游戏文件（服务端版）
-├── data/                      # 数据存储目录（自动生成）
-│   └── data.xlsx              # 用户数据
+│   └── game.html              # 游戏页面（服务端版）
+├── data/                      # 数据存储目录（运行后自动生成）
+│   └── data.xlsx              # 用户与游戏数据
 ├── desktop-app/               # Electron 桌面版
 │   ├── main.js                # Electron 主进程
 │   ├── preload.js             # 预加载脚本
-│   ├── package.json           # 构建配置
-│   ├── icon.png               # 应用图标
+│   ├── package.json           # 桌面版构建配置
+│   ├── icon.png               # 应用图标（512x512）
 │   └── game/index.html        # 游戏文件
 ├── screenshots/               # 游戏截图
 └── README.md
